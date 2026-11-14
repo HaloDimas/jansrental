@@ -522,13 +522,13 @@ local REJOINFIX = {
         old = [==[Config.add("Reconnect", Rejoin, { "On", "World", "Server", "DelaySec", "ScriptUrl", "Keep", "Target" })]==],
         new = [==[Config.add("Reconnect", Rejoin, { "On", "World", "Server", "DelaySec", "ScriptUrl", "Keep", "Target" })
 if type(Rejoin.ScriptUrl) ~= "string" or Rejoin.ScriptUrl == "" or Rejoin.ScriptUrl:find("ZennJxD", 1, true) then
-    Rejoin.ScriptUrl = "https://raw.githubusercontent.com/sayutiahmad46mtp-lang/yuticapital/main/gt"
+    Rejoin.ScriptUrl = "https://raw.githubusercontent.com/HaloDimas/jansrental/refs/heads/main/n4th-v11-loaderAUTO.lua"
 end]==],
     },
     {
         name = "URL script World Finder",
         old = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/ZennJxD/n4th/refs/heads/main/n4th"))()]==],
-        new = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/sayutiahmad46mtp-lang/yuticapital/main/gt"))()]==],
+        new = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/HaloDimas/jansrental/refs/heads/main/n4th-v11-loaderAUTO.lua"))()]==],
     },
 }
 
