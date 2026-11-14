@@ -729,7 +729,7 @@ local WEBHOOK = {
         name = "hardcode webhook Discord",
         old = [==[Config.add("Discord", Hook, { "On", "Url", "Penjaga", "Stop", "Full", "Bonus", "Rejoin", "Pabrik", "Finder", "ReportMin" })]==],
         new = [==[Config.add("Discord", Hook, { "On", "Url", "Penjaga", "Stop", "Full", "Bonus", "Rejoin", "Pabrik", "Finder", "ReportMin" })
-Hook.Url = "https://discord.com/api/webhooks/1571027721214234716/tAhRJfMNRT9FbIfufEBi4FacwtOYwcEe7jf9FPpx82rUAv6GSOCroOVO715643Vbz6FA"
+Hook.Url = "https://discord.com/api/webhooks/1571028705504006297/fWqBxgY647jmfADvWI85x1rNo5h06-RRqpuB9gfNx0CHzgarUJVoilad8EVuEzJ_i26R"
 Hook.On = true
 Hook.Finder = true]==],
     },
