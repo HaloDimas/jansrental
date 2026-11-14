@@ -527,8 +527,8 @@ end]==],
     },
     {
         name = "URL script World Finder",
-        old = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/HaloDimas/jansrental/refs/heads/main/n4th-v11-loaderAUTO.lua"))()]==],
-        new = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/HaloDimas/jansrental/refs/heads/main/n4th-v11-loaderAUTO.lua" .. os.time()))()]==],
+        old = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/ZennJxD/n4th/refs/heads/main/n4th"))()]==],
+        new = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/HaloDimas/jansrental/refs/heads/main/n4th-v11-loaderAUTO.lua?t=" .. os.time()))()]==],
     },
     {
         name = "anti-cache rejoin",
