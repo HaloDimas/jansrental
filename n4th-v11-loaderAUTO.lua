@@ -794,6 +794,13 @@ local AUTODF = {
                     for _, name in ipairs(batch) do
                         if not live() then break end
                         df.Current = name
+                        -- AutoDF jalan tanpa World Finder: antrean Finder masih kosong,
+                        -- jadi checkpoint teleport tersimpan kosong dan script tidak ke-load
+                        -- lagi habis pindah world (tanpa error). Isi antrean kosong dulu
+                        -- supaya checkpoint valid dan loader jalan lagi di server baru.
+                        if not WorldFinder.Queue or #WorldFinder.Queue == 0 then
+                            WorldFinder.Queue, WorldFinder.Index = {}, 1
+                        end
                         local entered = WorldFinder.warp(name, live)
                         if not live() then break end
                         local result = entered and inspectLoaded(name, live) or { kind = "failed", detail = "World tidak bisa dimasuki" }
