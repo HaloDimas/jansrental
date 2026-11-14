@@ -760,11 +760,12 @@ local AUTODF = {
     end
 
     WorldFinder.AutoDF = { On = false, Running = false, Done = 0, Checked = 0, Batch = 100, Current = "" }
-    Config.add("AutoDF", WorldFinder.AutoDF, { "On", "Done", "Checked" })
+    Config.add("AutoDF", WorldFinder.AutoDF, { "On", "Done", "Checked", "Current" })
 
     function WorldFinder.autoDFStop()
         local df = WorldFinder.AutoDF
         df.On = false
+        df.Current = ""
         if Build.Running and Build.DirtRun then Build.stop("Dihentikan") end
         WorldFinder.log("Auto Dirt Farm dimatikan.")
         pcall(Config.save, true)
@@ -777,7 +778,7 @@ local AUTODF = {
             notify("Auto Dirt Farm", "Hubungkan ke game dulu", 4)
             return
         end
-        df.On, df.Running, df.Current = true, true, ""
+        df.On, df.Running = true, true
         pcall(Config.save, true)
         WorldFinder.log("Auto Dirt Farm 24/7 dimulai: cari world 4 huruf tanpa lock.")
         Hook.send("finder", "Auto Dirt Farm dimulai\nMencari world 4 huruf tanpa lock, lalu bangun Dirt Farm sampai selesai.")
@@ -789,25 +790,60 @@ local AUTODF = {
                 if WorldFinder.Busy then
                     task.wait(2)
                 else
-                    local batch = WorldFinder.candidates("4 Huruf", df.Batch)
                     local target = nil
-                    for _, name in ipairs(batch) do
-                        if not live() then break end
-                        df.Current = name
-                        -- AutoDF jalan tanpa World Finder: antrean Finder masih kosong,
-                        -- jadi checkpoint teleport tersimpan kosong dan script tidak ke-load
-                        -- lagi habis pindah world (tanpa error). Isi antrean kosong dulu
-                        -- supaya checkpoint valid dan loader jalan lagi di server baru.
-                        if not WorldFinder.Queue or #WorldFinder.Queue == 0 then
-                            WorldFinder.Queue, WorldFinder.Index = {}, 1
+                    local waitForChar = false
+                    -- Lanjut dari world yang baru dimasuki sebelum reload: Current
+                    -- tersimpan di config, jadi habis reload kita cek world itu dulu
+                    -- sebelum pindah ke world lain. Tanpa ini AutoDF lupa world yang
+                    -- baru dimasuki dan langsung pindah lagi (loop pindah world).
+                    if df.Current ~= "" and Guard.worldName() ~= "" then
+                        if Guard.worldName() == df.Current then
+                            if Auto.here() then
+                                local result = inspectLoaded(df.Current, live)
+                                if live() then
+                                    df.Checked += 1
+                                    WorldFinder.record(df.Current, result)
+                                    if result.kind == "unlocked" then target = df.Current end
+                                end
+                                df.Current = ""
+                                pcall(Config.save, true)
+                            else
+                                waitForChar = true
+                            end
+                        else
+                            df.Current = ""
+                            pcall(Config.save, true)
                         end
-                        local entered = WorldFinder.warp(name, live)
-                        if not live() then break end
-                        local result = entered and inspectLoaded(name, live) or { kind = "failed", detail = "World tidak bisa dimasuki" }
-                        if live() then
-                            df.Checked += 1
-                            WorldFinder.record(name, result)
-                            if result.kind == "unlocked" then target = name break end
+                    elseif df.Current ~= "" then
+                        waitForChar = true
+                    end
+                    if waitForChar then
+                        task.wait(2)
+                    elseif live() and not target then
+                        local batch = WorldFinder.candidates("4 Huruf", df.Batch)
+                        for _, name in ipairs(batch) do
+                            if not live() then break end
+                            df.Current = name
+                            pcall(Config.save, true)
+                            -- AutoDF jalan tanpa World Finder: antrean Finder masih kosong,
+                            -- jadi checkpoint teleport tersimpan kosong dan script tidak ke-load
+                            -- lagi habis pindah world (tanpa error). Isi antrean kosong dulu
+                            -- supaya checkpoint valid dan loader jalan lagi di server baru.
+                            if not WorldFinder.Queue or #WorldFinder.Queue == 0 then
+                                WorldFinder.Queue, WorldFinder.Index = {}, 1
+                            end
+                            local entered = WorldFinder.warp(name, live)
+                            if not live() then break end
+                            local result = entered and inspectLoaded(name, live) or { kind = "failed", detail = "World tidak bisa dimasuki" }
+                            if live() then
+                                df.Checked += 1
+                                WorldFinder.record(name, result)
+                                if result.kind == "unlocked" then target = name break end
+                            end
+                        end
+                        if not target then
+                            df.Current = ""
+                            pcall(Config.save, true)
                         end
                     end
                     if live() and target then
@@ -834,7 +870,11 @@ local AUTODF = {
                             pcall(Config.save, true)
                             if live() then Hook.send("finder", ("Auto Dirt Farm — gagal jalan di %s\nWorld dilewati, cari berikutnya. Cek area Dirt Farm & stok Dirt/Dirt Seed."):format(target)) end
                         end
-                    elseif live() then
+                        -- World sudah selesai / dilewati: hapus Current supaya tidak
+                        -- dicek ulang di iterasi berikut.
+                        df.Current = ""
+                        pcall(Config.save, true)
+                    elseif live() and not waitForChar then
                         WorldFinder.log("Auto Dirt Farm: batch 4 huruf habis tanpa world kosong, lanjut batch berikutnya.")
                         Hook.send("finder", ("Auto Dirt Farm: %d world 4 huruf dicek, belum ada yang kosong. Lanjut batch berikutnya."):format(df.Checked))
                     end
