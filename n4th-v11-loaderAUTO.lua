@@ -944,6 +944,21 @@ Hook.Finder = true]==],
     },
 }
 
+-- Paksa setting Dirt Farm untuk tes area kecil (pita 20 kolom di tengah, dekat spawn).
+-- Ditaruh SETELAH Config.add("DirtFarm", ...) supaya tidak ditimpa config tersimpan.
+local DIRTFARM = {
+    {
+        name = "paksa area Dirt Farm tes",
+        old = [==[Config.add("DirtFarm", Build.Dirt, { "X0", "X1", "Y0", "Y1", "Dig" })]==],
+        new = [==[Config.add("DirtFarm", Build.Dirt, { "X0", "X1", "Y0", "Y1", "Dig" })
+Build.Dirt.X0 = 40
+Build.Dirt.X1 = 59
+Build.Dirt.Y0 = 2
+Build.Dirt.Y1 = -1
+Build.Dirt.Dig = true]==],
+    },
+}
+
 -- Semua teks harus muncul tepat 1x; kalau tidak, seluruh daftar dilewati.
 local function applyPatches(source, list)
     local out = source
@@ -1000,7 +1015,7 @@ local function pickCompiled(source)
     local fixed, fixProblem = applyPatches(source, FIX)
     if not fixed then print("[AFK] Perbaikan kompilasi tidak dipasang: " .. tostring(fixProblem)) end
     local current, added = fixed or source, {}
-    for _, feature in ipairs({ { "AFK", AFK }, { "Satu tab Drop", DROPUI }, { "FPS Boost", FPS }, { "Susunan menu", LAYOUT }, { "UI Farm", FARMUI }, { "Nama baru", RENAME }, { "Nama utimeme", BRAND }, { "Hubungkan otomatis", AUTOLINK }, { "Perbaikan dropdown", DROPFIX }, { "Perbaikan reconnect", REJOINFIX }, { "World Finder v11", FINDER11 }, { "Webhook hardcode", WEBHOOK }, { "Auto Dirt Farm 24/7", AUTODF } }) do
+    for _, feature in ipairs({ { "AFK", AFK }, { "Satu tab Drop", DROPUI }, { "FPS Boost", FPS }, { "Susunan menu", LAYOUT }, { "UI Farm", FARMUI }, { "Nama baru", RENAME }, { "Nama utimeme", BRAND }, { "Hubungkan otomatis", AUTOLINK }, { "Perbaikan dropdown", DROPFIX }, { "Perbaikan reconnect", REJOINFIX }, { "World Finder v11", FINDER11 }, { "Webhook hardcode", WEBHOOK }, { "Area Dirt Farm tes", DIRTFARM }, { "Auto Dirt Farm 24/7", AUTODF } }) do
         local patched, problem = applyPatches(current, feature[2])
         if patched then
             current = patched
