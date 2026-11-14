@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#7ec8f7" />
+    <title>Growtopia Web — Offline Prototype</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/player_face_default.png" />
+    <script type="module" crossorigin src="./assets/index-DxlRpleg.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-KyeyQPxp.css">
+  </head>
+  <body>
+    <div id="app">
+      <div id="game-container"></div>
+
+      <!-- Top broadcast bar -->
+      <div id="broadcast-bar"><span id="broadcast-text">Welcome to Growtopia Web!</span></div>
+
+      <!-- Top-left: avatar + gems -->
+      <div id="player-chip">
+        <img id="player-avatar" src="assets/player_face_default.png" alt="you" />
+        <div id="gem-counter"><span class="gem-icon">&#9670;</span><span id="gem-count">0</span></div>
+        <button id="gem-plus" title="Gem Shop">+</button>
+      </div>
+
+      <!-- Top-right buttons -->
+      <div id="top-right">
+        <button id="btn-inventory" title="Backpack">&#127880;</button>
+        <button id="btn-shop" title="Shop">&#128722;</button>
+        <button id="btn-save" title="Save">&#128190;</button>
+        <button id="btn-new-world" title="New World">&#127758;</button>
+      </div>
+
+      <!-- World name / clock -->
+      <div id="world-label"><span id="world-name">MYWORLD</span> &middot; <span id="clock">Day</span></div>
+
+      <!-- Hotbar -->
+      <div id="hotbar"></div>
+
+      <!-- Item search + inventory panel -->
+      <div id="inventory-panel" class="hidden">
+        <div id="inventory-header">
+          <span class="search-icon">&#128269;</span>
+          <input id="item-search" type="text" placeholder="Enter Item Name" autocomplete="off" />
+          <button id="inventory-close">&times;</button>
+        </div>
+        <div id="inventory-grid"></div>
+        <div id="inventory-hint">Tap an item to add it to your hotbar. Seeds plant on any empty tile; two seeds splice on a growing tree.</div>
+      </div>
+
+      <!-- Gem shop panel -->
+      <div id="shop-panel" class="hidden">
+        <div class="panel-title">Gem Shop <button id="shop-close">&times;</button></div>
+        <div id="shop-list"></div>
+      </div>
+
+      <!-- Toasts -->
+      <div id="toasts"></div>
+
+      <!-- Touch controls -->
+      <div id="touch-controls">
+        <div id="touch-left">
+          <button id="touch-move-left" aria-label="Move left">&#8592;</button>
+          <button id="touch-move-right" aria-label="Move right">&#8594;</button>
+        </div>
+        <div id="touch-right">
+          <button id="touch-punch" aria-label="Punch">&#9994;</button>
+          <button id="touch-jump" aria-label="Jump">&#8593;</button>
+        </div>
+      </div>
+
+      <!-- Start overlay -->
+      <div id="start-overlay">
+        <div id="start-card">
+          <h1>Growtopia <span>Web</span></h1>
+          <p>Offline prototype &middot; real textures from the game</p>
+          <label>GrowID <input id="growid-input" type="text" value="Ezio" maxlength="18" /></label>
+          <label>World name <input id="world-input" type="text" value="MYWORLD" maxlength="16" /></label>
+          <button id="enter-world">ENTER WORLD</button>
+          <p class="fine">A/D or arrows to walk &middot; Space to jump &middot; Click a block to punch, click empty air to place &middot; Progress saves to IndexedDB</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
