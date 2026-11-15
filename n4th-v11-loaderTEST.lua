@@ -1,0 +1,1135 @@
+-- n4th v11 (new base) + perbaikan error kompilasi + AFK Drop Semua Seed + FPS Boost + susunan menu baru + World Finder v11
+-- Base loader baru: cek commit terbaru, unduh dari URL commit itu, notifikasi gagal via StarterGui.
+-- Tiap bagian patch dipasang sendiri-sendiri. Kalau salah satu tidak cocok dengan script terbaru,
+-- bagian itu dilewati dan yang lain tetap jalan. Urutan percobaan kompilasi:
+--   semua yang berhasil dipasang  ->  perbaikan saja  ->  script asli.
+-- v11: World Finder lebih cepat & lebih pintar — lihat tabel FINDER11 di bawah.
+-- v11: Auto Dirt Farm 24/7 — cari world 4 huruf tanpa lock, bangun Dirt Farm
+-- sampai selesai, lalu pindah ke world kosong berikutnya. Lihat tabel AUTODF di bawah.
+
+assert(type(loadstring) == "function", "[n4th] Executor does not provide loadstring after update.")
+local repository = "ZennJxD/n4th"
+local httpService = game:GetService("HttpService")
+local lastError = "empty response"
+
+local function reportFailure(message)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "n4th failed to load",
+            Text = message:sub(1, 180),
+            Duration = 8,
+        })
+    end)
+    error(message, 0)
+end
+
+local FIX = {
+    {
+        name = "buka bungkus World Finder",
+        old = "-- WORLD FINDER: pindah world dan verifikasi seluruh foreground sebelum menyebutnya tanpa lock.\ndo\n",
+        new = "-- WORLD FINDER: pindah world dan verifikasi seluruh foreground sebelum menyebutnya tanpa lock.\ndo (function()\n",
+    },
+    {
+        name = "tutup bungkus World Finder",
+        old = "end\n\n-- ===== TAB: WORLD FINDER =====",
+        new = "end)() end\n\n-- ===== TAB: WORLD FINDER =====",
+    },
+}
+
+---------------------------------------------------------------------
+-- FITUR AFK: drop semua seed yang stack-nya penuh (200)
+---------------------------------------------------------------------
+local AFK = {
+    {
+        name = "tabel AutoDrop",
+        old = [==[local AutoDrop = {]==],
+        new = [==[local AutoDrop = {
+    AllSeeds = true,]==],
+    },
+    {
+        name = "fungsi seed penuh",
+        old = [==[function AutoDrop.labels()]==],
+        new = [==[function AutoDrop.isKept(id)
+        return (Pabrik.Running and id == Pabrik.SeedId) or (Farmer.Running and id == Farmer.SeedId)
+            or (Splice.Running and (id == Splice.A or id == Splice.B)) or false
+    end
+
+    function AutoDrop.covers(id)
+        if table.find(AutoDrop.Items, id) then return true end
+        if not AutoDrop.AllSeeds or AutoDrop.isKept(id) then return false end
+        local item = ItemDB[id]
+        return item ~= nil and item.kind == "seed"
+    end
+
+    AutoDrop.baseFull = AutoDrop.fullItems
+    function AutoDrop.fullItems()
+        local items = AutoDrop.baseFull()
+        if AutoDrop.AllSeeds and Refs.Inv then
+            local seen = {}
+            for _, id in ipairs(items) do seen[id] = true end
+            for _, slot in pairs(Refs.Inv.slots) do
+                local id = type(slot) == "table" and slot.id or nil
+                local item = type(id) == "number" and ItemDB[id] or nil
+                if item and item.kind == "seed" and not seen[id] and not AutoDrop.isKept(id) and invCount(id) >= 200 then
+                    seen[id] = true
+                    items[#items + 1] = id
+                end
+            end
+        end
+        return items
+    end
+
+    function AutoDrop.labels()]==],
+    },
+    {
+        name = "drop saat trip",
+        old = [==[if table.find(AutoDrop.Items, id) and invCount(id) >= 200 then]==],
+        new = [==[if AutoDrop.covers(id) and invCount(id) >= 200 then]==],
+    },
+    {
+        name = "validasi toggle",
+        old = [==[local reason = #AutoDrop.Items == 0 and "Pilih item dulu" or AutoDrop.targetError()]==],
+        new = [==[local reason = (#AutoDrop.Items == 0 and not AutoDrop.AllSeeds) and "Pilih item dulu" or AutoDrop.targetError()]==],
+    },
+    {
+        name = "Farmer tidak dobel drop",
+        old = [==[not (AutoDrop.On and table.find(AutoDrop.Items, id))]==],
+        new = [==[not (AutoDrop.On and AutoDrop.covers(id))]==],
+    },
+    {
+        name = "Auto Farm tidak dobel drop",
+        old = [==[not (AutoDrop.On and table.find(AutoDrop.Items, seed))]==],
+        new = [==[not (AutoDrop.On and AutoDrop.covers(seed))]==],
+    },
+}
+
+---------------------------------------------------------------------
+-- FPS BOOST: toggle + opsi di tab Pengaturan > Opsi
+---------------------------------------------------------------------
+local FPS = {
+    {
+        name = "menu FPS Boost",
+        old = [==[local OptTab = Box.SetOpt]==],
+        new = [==[local OptTab = Box.SetOpt
+
+do (function()
+    local Lighting = game:GetService("Lighting")
+    local PerfTab = Box.SetPerf or OptTab
+    local Boost = {
+        On = false, Cap = 40, Quality = true, Shadows = true, Hide3D = false, HideGui = false, Saved = nil,
+    }
+    Session.FpsBoost = Boost
+    Config.add("FpsBoost", Boost, { "Cap", "Quality", "Shadows", "Hide3D", "HideGui" })
+
+    local function setCap(n)
+        local f = setfpscap or set_fps_cap
+        if type(f) ~= "function" and syn then f = syn.set_fps_cap end
+        if type(f) ~= "function" then return false end
+        return (pcall(f, n))
+    end
+
+    local function apply()
+        local s = { effects = {} }
+        Boost.Saved = s
+        s.lite, s.visual = State.LiteMode, State.Visual
+        if not State.LiteMode then setLite(true) end
+        State.Visual = false
+        if Boost.Quality then
+            pcall(function()
+                local r = settings().Rendering
+                s.quality = r.QualityLevel
+                r.QualityLevel = Enum.QualityLevel.Level01
+            end)
+        end
+        if Boost.Shadows then
+            pcall(function()
+                s.shadows = Lighting.GlobalShadows
+                Lighting.GlobalShadows = false
+                for _, e in ipairs(Lighting:GetChildren()) do
+                    if e:IsA("PostEffect") then
+                        s.effects[e] = e.Enabled
+                        e.Enabled = false
+                    end
+                end
+            end)
+        end
+        if Boost.Hide3D then
+            if pcall(function() RunService:Set3dRenderingEnabled(false) end) then s.hide3d = true end
+        end
+        if Boost.HideGui then
+            local gg = PlayerGui:FindFirstChild("GameGui")
+            if gg and gg:IsA("ScreenGui") then
+                s.gui, s.guiOn = gg, gg.Enabled
+                gg.Enabled = false
+            end
+        end
+        s.fps = setCap(Boost.Cap)
+        if not s.fps then notify("FPS Boost", "Executor tidak punya setfpscap, batas FPS dilewati", 4) end
+    end
+
+    local function restore()
+        local s = Boost.Saved
+        if not s then return end
+        Boost.Saved = nil
+        if s.fps then setCap(60) end
+        if s.quality then pcall(function() settings().Rendering.QualityLevel = s.quality end) end
+        if s.shadows ~= nil then pcall(function() Lighting.GlobalShadows = s.shadows end) end
+        for e, was in pairs(s.effects) do pcall(function() e.Enabled = was end) end
+        if s.hide3d then pcall(function() RunService:Set3dRenderingEnabled(true) end) end
+        if s.gui then pcall(function() s.gui.Enabled = s.guiOn end) end
+        if s.lite == false then setLite(false) end
+        if s.visual ~= nil then State.Visual = s.visual end
+    end
+
+    function Boost.set(on)
+        if on == Boost.On then return end
+        Boost.On = on
+        if on then apply() else restore() end
+    end
+
+    local function changed()
+        if Boost.On then
+            restore()
+            apply()
+        end
+    end
+
+    safe(function()
+        PerfTab:Toggle({
+            Title = "FPS Boost",
+            Desc = "Kurangi beban HP: batas FPS, grafis terendah, Mode Lite & animasi dimatikan. Semua dikembalikan saat dimatikan.",
+            Value = false,
+            Callback = function(on) Boost.set(on) end,
+        })
+    end)
+
+    addNumber(PerfTab, {
+        Title = "Batas FPS",
+        Desc = "Makin rendah makin ringan. Jangan di bawah 30 kalau pakai Clear / Farmer / Pabrik",
+        Min = 15, Max = 60, Step = 5, Default = Boost.Cap,
+        Callback = function(v)
+            Boost.Cap = math.floor(v)
+            if Boost.On then setCap(Boost.Cap) end
+        end,
+    })
+
+    safe(function()
+        PerfTab:Toggle({
+            Title = "Boost: kualitas grafis terendah",
+            Value = Boost.Quality,
+            Callback = function(on) Boost.Quality = on changed() end,
+        })
+    end)
+
+    safe(function()
+        PerfTab:Toggle({
+            Title = "Boost: matikan bayangan & efek layar",
+            Value = Boost.Shadows,
+            Callback = function(on) Boost.Shadows = on changed() end,
+        })
+    end)
+
+    safe(function()
+        PerfTab:Toggle({
+            Title = "Boost: matikan render 3D",
+            Desc = "Game digambar lewat UI, jadi tampilan tidak berubah. Bisa bikin latar hitam di sebagian executor.",
+            Value = Boost.Hide3D,
+            Callback = function(on) Boost.Hide3D = on changed() end,
+        })
+    end)
+
+    safe(function()
+        PerfTab:Toggle({
+            Title = "Boost: sembunyikan layar game (AFK)",
+            Desc = "Layar game jadi kosong tapi farming tetap jalan. Paling hemat GPU. Matikan untuk melihat game lagi.",
+            Value = Boost.HideGui,
+            Callback = function(on) Boost.HideGui = on changed() end,
+        })
+    end)
+
+    -- dipulihkan otomatis saat script ditutup / dijalankan ulang
+    table.insert(Connections, { Disconnect = function() pcall(restore) end })
+end)() end]==],
+    },
+}
+
+---------------------------------------------------------------------
+-- SUSUNAN MENU BARU: grup, urutan & nama tab
+--   Farming: Auto Farm, Harvest, Splice | World: Clear World, Dirt Farm, Pabrik
+--   Shop: Drop, Titik Drop, Vending, Tas | Info: Growscan, Statistik
+--   Utilitas: Auto Chat, World Finder, Lainnya | Keamanan: Auto Mods, Auto Reconnect
+--   Setelan: Umum, Performa, Koneksi & Config, Discord
+---------------------------------------------------------------------
+local LAYOUT = {
+    {
+        name = "grup World, Shop, Info",
+        old = [==[{ key = "farm", title = "Farming", icon = "sprout", opened = true },]==],
+        new = [==[{ key = "farm", title = "Farming", icon = "sprout", opened = true },
+    { key = "world", title = "World", icon = "map" },
+    { key = "shop", title = "Shop", icon = "shopping-bag" },
+    { key = "info", title = "Info", icon = "info" },]==],
+    },
+    {
+        name = "grup Utilitas",
+        old = [==[{ key = "fitur", title = "Fitur", icon = "sparkles" },]==],
+        new = [==[{ key = "fitur", title = "Utilitas", icon = "sparkles" },]==],
+    },
+    {
+        name = "urutan dan nama tab",
+        old = [==[local function makeTab(title, icon, group)]==],
+        new = [==[Session.PreTabs = {}
+do (function()
+    -- { judul lama (dipakai kode), judul baru, ikon, grup }. Urutan di sini = urutan di sidebar.
+    local PLAN = {
+        { "Farm", "Auto Farm", "pickaxe", "farm" },
+        { "Farmer", "Harvest", "leaf", "farm" },
+        { "Splice", "Splice", "git-merge", "farm" },
+        { "Clear World", "Clear World", "eraser", "world" },
+        { "Lahan", "Dirt Farm", "layout-grid", "world" },
+        { "Pabrik", "Pabrik", "factory", "world" },
+        { "Auto Drop", "Drop", "package-open", "shop" },
+        { "Vending", "Vending", "store", "shop" },
+        { "Tas", "Tas", "backpack", "shop" },
+        { "Growscan", "Growscan", "scan-search", "info" },
+        { "Statistik", "Statistik", "bar-chart-3", "info" },
+        { "Auto Chat", "Auto Chat", "message-circle", "fitur" },
+        { "World Finder", "World Finder", "globe", "fitur" },
+        { "Bonus", "Lainnya", "gift", "fitur" },
+        { "Penjaga", "Auto Mods", "eye", "aman" },
+        { "Auto Reconnect", "Auto Reconnect", "refresh-cw", "aman" },
+        { "Pengaturan", "Umum", "sliders-horizontal", "setel" },
+        { "Performa", "Performa", "gauge", "setel" },
+        { "Koneksi", "Koneksi & Config", "plug", "setel" },
+        { "Discord", "Discord", "bell", "setel" },
+    }
+    for _, e in ipairs(PLAN) do
+        local section = Groups[e[4]]
+        if section then
+            local ok, tab = pcall(function() return section:Tab({ Title = e[2], Icon = e[3] }) end)
+            if ok and tab then Session.PreTabs[e[1]] = tab end
+        end
+    end
+    Session.PreTabs["Titik Drop"] = Session.PreTabs["Auto Drop"] -- satu tab Drop
+end)() end
+
+local function makeTab(title, icon, group)
+    local cached = Session.PreTabs[title]
+    if cached then return cached end
+    local created = Session.rawTab(title, icon, group)
+    Session.PreTabs[title] = created
+    return created
+end
+
+Session.rawTab = function(title, icon, group)]==],
+    },
+    {
+        name = "Auto Reconnect jadi tab Keamanan",
+        old = [==[local rBox = box(ConnTab, "Auto Reconnect", false)]==],
+        new = [==[local rBox = box(makeTab("Auto Reconnect", "refresh-cw", "aman"), "Auto Reconnect", true)]==],
+    },
+    {
+        name = "kotak Performa",
+        old = [==[Box.SetOpt = box(SetTab, "Opsi", true)]==],
+        new = [==[Box.SetOpt = box(SetTab, "Opsi", true)
+Box.SetPerf = box(makeTab("Performa", "gauge", "setel"), "Performa", true)]==],
+    },
+    {
+        name = "Mode Lite ke Performa",
+        old = "OptTab:Toggle({\n        Title = \"Mode Lite\",",
+        new = "Box.SetPerf:Toggle({\n        Title = \"Mode Lite\",",
+    },
+    {
+        name = "Mute suara ke Performa",
+        old = "OptTab:Toggle({\n        Title = \"Mute suara pukulan\",",
+        new = "Box.SetPerf:Toggle({\n        Title = \"Mute suara pukulan\",",
+    },
+    {
+        name = "Animasi aksi ke Performa",
+        old = "OptTab:Toggle({\n        Title = \"Animasi aksi\",",
+        new = "Box.SetPerf:Toggle({\n        Title = \"Animasi aksi\",",
+    },
+    {
+        name = "terjemahan English",
+        old = [==[["Fitur"] = "Features", ["Keamanan"] = "Security", ["Setelan"] = "Setup",]==],
+        new = [==[["Fitur"] = "Features", ["Keamanan"] = "Security", ["Setelan"] = "Setup",
+    ["Utilitas"] = "Utilities", ["Umum"] = "General", ["Performa"] = "Performance",
+    ["Koneksi & Config"] = "Connection & Config",
+    ["Status Harvest"] = "Harvest Status", ["Jalankan Harvest"] = "Run Harvest",
+    ["Status Dirt Farm"] = "Dirt Farm Status", ["Bangun Dirt Farm"] = "Build Dirt Farm",
+    ["Status Auto Mods"] = "Auto Mods Status", ["Aktifkan Auto Mods"] = "Enable Auto Mods",
+    ["Lanjutan: pilih item sendiri"] = "Advanced: pick items yourself",
+    ["Lanjutan: drop di world lain"] = "Advanced: drop in another world",
+    ["Set titik drop di sini"] = "Set drop point here",
+    ["Berdiri di tempat drop lalu tekan. Dipakai semua fitur drop."] = "Stand where you want to drop, then press. Used by every drop feature.",
+    ["Seed yang stack-nya penuh (200) dibawa ke titik drop, lalu balik farming. Block atau item lain bisa dipilih di Lanjutan."] =
+        "Full seed stacks (200) are taken to the drop point, then back to farming. Blocks or other items can be picked under Advanced.",]==],
+    },
+}
+
+---------------------------------------------------------------------
+-- RAPI-IN UI: tab Farm. Collect & kecepatan (global) pindah ke Setelan > Umum,
+-- Auto Break Block pindah ke tab Clear World.
+---------------------------------------------------------------------
+local FARMUI = {
+    {
+        name = "judul kotak Auto Farm",
+        old = [==[Box.FarmCtl = box(FarmTab, "Kontrol", true)]==],
+        new = [==[Box.FarmCtl = box(FarmTab, "Auto Farm", true)]==],
+    },
+    {
+        name = "kotak Mode, Collect, Kecepatan",
+        old = [==[Box.FarmSpeed = box(FarmTab, "Mode & Kecepatan", false)]==],
+        new = [==[Box.FarmSpeed = box(FarmTab, "Mode", false)
+Box.GlobCollect = box(makeTab("Pengaturan", "sliders-horizontal", "setel"), "Collect", false)
+Box.GlobSpeed = box(makeTab("Pengaturan", "sliders-horizontal", "setel"), "Kecepatan", false)]==],
+    },
+    {
+        name = "Auto Collect pindah",
+        old = "Box.FarmCtl:Toggle({\n        Title = \"Auto Collect\",",
+        new = "Box.GlobCollect:Toggle({\n        Title = \"Auto Collect\",",
+    },
+    {
+        name = "Mode collect pindah",
+        old = "Box.FarmCtl:Dropdown({\n        Title = \"Mode collect\",",
+        new = "Box.GlobCollect:Dropdown({\n        Title = \"Mode collect\",",
+    },
+    {
+        name = "Radius collect pindah",
+        old = "addNumber(Box.FarmCtl, {\n    Title = \"Radius collect (mode Remote)\",",
+        new = "addNumber(Box.GlobCollect, {\n    Title = \"Radius collect (mode Remote)\",",
+    },
+    {
+        name = "Speed Place pindah",
+        old = "addNumber(SpeedTab, {\n    Title = \"Speed Place (ms)\",",
+        new = "addNumber(Box.GlobSpeed, {\n    Title = \"Speed Place (ms)\",",
+    },
+    {
+        name = "Speed Break pindah",
+        old = "addNumber(SpeedTab, {\n    Title = \"Speed Break (ms)\",",
+        new = "addNumber(Box.GlobSpeed, {\n    Title = \"Speed Break (ms)\",",
+    },
+    {
+        name = "Auto Break Block pindah ke Clear World",
+        old = [==[local controls = box(FarmTab, "Auto Break Block", true)]==],
+        new = [==[local controls = box(makeTab("Clear World", "eraser", "world"), "Auto Break Block", false)]==],
+    },
+}
+
+---------------------------------------------------------------------
+-- GANTI NAMA yang kelihatan di menu: Farmer -> Harvest, Lahan -> Dirt Farm, Penjaga -> Auto Mods
+---------------------------------------------------------------------
+local RENAME = {
+    {
+        name = "judul notifikasi",
+        old = [==[Title = I18N.T(title), Content = I18N.T(content)]==],
+        new = [==[Title = I18N.T(({ Penjaga = "Auto Mods", Lahan = "Dirt Farm", ["Bangun Lahan"] = "Dirt Farm", Farmer = "Harvest" })[title] or title), Content = I18N.T(content)]==],
+    },
+    { name = "Status Farmer", old = [==[Title = "Status Farmer"]==], new = [==[Title = "Status Harvest"]==] },
+    { name = "Jalankan Farmer", old = [==[Title = "Jalankan Farmer",]==], new = [==[Title = "Jalankan Harvest",]==] },
+    { name = "Status Lahan", old = [==[Title = "Status Lahan"]==], new = [==[Title = "Status Dirt Farm"]==] },
+    { name = "kotak Bangun Lahan", old = [==[local lCtl = box(LTab, "Bangun Lahan", true)]==], new = [==[local lCtl = box(LTab, "Bangun Dirt Farm", true)]==] },
+    { name = "toggle Bangun Lahan", old = [==[Title = "Bangun Lahan",]==], new = [==[Title = "Bangun Dirt Farm",]==] },
+    { name = "Status Penjaga", old = [==[Title = "Status Penjaga"]==], new = [==[Title = "Status Auto Mods"]==] },
+    { name = "Aktifkan Penjaga", old = [==[Title = "Aktifkan Penjaga",]==], new = [==[Title = "Aktifkan Auto Mods",]==] },
+}
+
+---------------------------------------------------------------------
+-- NAMA: n4th -> utimeme (judul menu, tombol buka, watermark nama di atas karakter, notifikasi)
+-- Nama folder config dan nama internal tidak diubah, supaya pengaturan lama tidak hilang.
+---------------------------------------------------------------------
+local BRAND = {
+    { name = "judul jendela", old = "WindUI:CreateWindow({\n    Title = \"n4th\",", new = "WindUI:CreateWindow({\n    Title = \"utimeme\"," },
+    { name = "tombol buka menu", old = "Window:EditOpenButton({\n        Title = \"n4th\",", new = "Window:EditOpenButton({\n        Title = \"utimeme\"," },
+    { name = "popup bahasa", old = "WindUI:Popup({\n            Title = \"n4th\",", new = "WindUI:Popup({\n            Title = \"utimeme\"," },
+    { name = "nama di atas karakter", old = [==[NameText = "n4th",]==], new = [==[NameText = "utimeme",]==] },
+    { name = "nama pengirim Discord", old = [==[username = "n4th",]==], new = [==[username = "utimeme",]==] },
+    { name = "tes notifikasi", old = [==[Hook.send("test", "Tes notifikasi dari n4th")]==], new = [==[Hook.send("test", "Tes notifikasi dari utimeme")]==] },
+    { name = "tes notifikasi EN", old = [==[["Tes notifikasi dari n4th"] = "Test notification from n4th",]==], new = [==[["Tes notifikasi dari utimeme"] = "Test notification from utimeme",]==] },
+    { name = "tes World Finder", old = [==["World Finder siap mengirim hasil hunting dari n4th"]==], new = [==["World Finder siap mengirim hasil hunting dari utimeme"]==] },
+    { name = "notifikasi koneksi", old = [==[reconnect("n4th v5.2")]==], new = [==[reconnect("utimeme")]==] },
+}
+
+---------------------------------------------------------------------
+-- HUBUNGKAN OTOMATIS: kalau sudah di dalam world tapi data world / tas belum ketemu
+-- (misal script dijalankan sebelum world siap), coba hubungkan ulang sendiri.
+---------------------------------------------------------------------
+local AUTOLINK = {
+    {
+        name = "hubungkan otomatis",
+        old = [==[Session.InitStep = "siap"]==],
+        new = [==[task.spawn(function()
+    task.wait(8)
+    local tries = 0
+    while alive() do
+        if not (Refs.World and Refs.Inv) and getPlayerTile() then
+            tries += 1
+            if tries <= 5 or tries % 8 == 0 then
+                UI.later("autoLink", function() reconnect("Hubungkan otomatis") end)
+            end
+        else
+            tries = 0
+            if not UI.DropOk then
+                UI.later("autoDropdown", function() doInvRefresh(true) end)
+            end
+        end
+        task.wait(tries <= 5 and 8 or 8)
+    end
+end)
+
+Session.InitStep = "siap"]==],
+    },
+}
+
+---------------------------------------------------------------------
+-- PERBAIKAN DROPDOWN: isi daftar langsung dulu; kalau gagal baru lewat jalur izin penuh (lama)
+---------------------------------------------------------------------
+local DROPFIX = {
+    {
+        name = "refresh dropdown langsung",
+        old = [==[function UI.ddRefresh(dd, labels)]==],
+        new = [==[function UI.ddRefresh(dd, labels)
+    if dd and pcall(function() dd:Refresh(labels) end) then
+        UI.DropOk = os.clock()
+        UI.DropErr = nil
+        return
+    end
+    return UI.ddRefreshElevated(dd, labels)
+end
+
+function UI.ddRefreshElevated(dd, labels)]==],
+    },
+}
+
+---------------------------------------------------------------------
+-- PERBAIKAN AUTO RECONNECT / AUTO JOIN
+--  1. "berhasil masuk" harus benar-benar sudah ada di world tujuan (nama cocok + karakter muncul)
+--  2. "di luar world" dideteksi juga dari karakter yang tidak ada (bukan cuma nama world kosong)
+--  3. Rejoin setelah disconnect server memuat script kita, bukan link n4th asli
+---------------------------------------------------------------------
+local REJOINFIX = {
+        {
+        name = "batas waktu masuk world",
+        old = [==[        if not ok then return false, tostring(reason or "World cannot be entered") end
+        if not waitFor(1.5, live) then return false, "Stopped" end]==],
+        new = [==[        if not ok then return false, tostring(reason or "World cannot be entered") end
+        if not waitFor(8, live) then return false, "Stopped" end]==],
+    },
+        {
+        name = "cek berhasil masuk",
+        old = [==[        return Guard.worldName() == name, "Destination world not readable yet"]==],
+        new = [==[        return Guard.worldName() == name, "Destination world not readable yet"]==],
+    },
+    {
+        name = "deteksi di luar world",
+        old = [==[local out = Guard.worldName() == ""]==],
+        new = [==[local out = Guard.worldName() == "" or not Auto.here()]==],
+    },
+    {
+        name = "URL script rejoin",
+        old = [==[Config.add("Reconnect", Rejoin, { "On", "World", "Server", "DelaySec", "ScriptUrl", "Keep", "Target" })]==],
+        new = [==[Config.add("Reconnect", Rejoin, { "On", "World", "Server", "DelaySec", "ScriptUrl", "Keep", "Target" })
+if Rejoin.ScriptUrl ~= "https://raw.githubusercontent.com/HaloDimas/jansrental/refs/heads/main/n4th-v11-loaderAUTO.lua" then
+    Rejoin.ScriptUrl = "https://raw.githubusercontent.com/HaloDimas/jansrental/refs/heads/main/n4th-v11-loaderAUTO.lua"
+end]==],
+    },
+    {
+        name = "URL script World Finder",
+        old = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/ZennJxD/n4th/refs/heads/main/n4th"))()]==],
+        new = [==[loadstring(game:HttpGet("https://raw.githubusercontent.com/HaloDimas/jansrental/refs/heads/main/n4th-v11-loaderAUTO.lua?t=" .. os.time()))()]==],
+    },
+    {
+        name = "anti-cache rejoin",
+        old = [==[local url = tostring(Rejoin.ScriptUrl or "")]==],
+        new = [==[local url = tostring(Rejoin.ScriptUrl or "")
+        if url ~= "" then url = url .. (url:find("?", 1, true) and "&t=" or "?t=") .. os.time() end]==],
+    },
+}
+
+---------------------------------------------------------------------
+-- SATU TAB DROP: satu toggle (Auto Drop), satu tombol set titik, sisanya di "Lanjutan"
+--  - Titik drop yang diset di sini ikut dipakai Pabrik, Harvest & Auto Farm (satu titik untuk semua)
+--  - Seed yang sedang dipakai Pabrik / Harvest / Splice tidak ikut di-drop
+---------------------------------------------------------------------
+local DROPUI = {
+    { name = "kotak Auto Drop", old = [==[local controls = box(tab, "Kontrol", true)]==], new = [==[local controls = box(tab, "Auto Drop", true)]==] },
+    { name = "kotak Lanjutan item", old = [==[local itemBox = box(tab, "Item", true)]==], new = [==[local itemBox = box(tab, "Lanjutan: pilih item sendiri", false)]==] },
+    { name = "kotak titik digabung", old = [==[local pointBox = box(tab, "Atur titik drop", true)]==], new = [==[local pointBox = controls]==] },
+    { name = "judul toggle", old = [==[Title = "Pantau item penuh",]==], new = [==[Title = "Auto Drop",]==] },
+    {
+        name = "deskripsi toggle",
+        old = [==[Desc = "Item mencapai 200 lalu dibawa ke tile drop. Setelah itu kembali dan lanjut farming.",]==],
+        new = [==[Desc = "Seed yang stack-nya penuh (200) dibawa ke titik drop, lalu balik farming. Block atau item lain bisa dipilih di Lanjutan.",]==],
+    },
+    {
+        name = "pilih tile ke Lanjutan",
+        old = "pointBox:Button({\n            Title = \"Pilih tile drop\",",
+        new = "itemBox:Button({\n            Title = \"Pilih tile drop\",",
+    },
+    {
+        name = "tombol set titik",
+        old = [==[Title = "Pakai tile tempat berdiri sekarang",]==],
+        new = [==[Title = "Set titik drop di sini",
+            Desc = "Berdiri di tempat drop lalu tekan. Dipakai semua fitur drop.",]==],
+    },
+    {
+        name = "satu titik untuk semua (set)",
+        old = [==[AutoDrop.X, AutoDrop.Y, AutoDrop.World = x, y, world]==],
+        new = [==[AutoDrop.X, AutoDrop.Y, AutoDrop.World = x, y, world
+        Pabrik.DropX, Pabrik.DropY, Pabrik.DropWorld = x, y, world
+        if UI.DropWorldInput then pcall(function() UI.DropWorldInput:Set(world) end) end]==],
+    },
+    {
+        name = "satu titik untuk semua (hapus di grid)",
+        old = [==[AutoDrop.X, AutoDrop.Y, AutoDrop.World = -1, -1, ""]==],
+        new = [==[AutoDrop.X, AutoDrop.Y, AutoDrop.World = -1, -1, ""
+            Pabrik.DropX = -1
+            Pabrik.DropY = -1]==],
+    },
+    {
+        name = "satu titik untuk semua (hapus di Lanjutan)",
+        old = [==[Pabrik.DropX, Pabrik.DropY = -1, -1]==],
+        new = [==[Pabrik.DropX, Pabrik.DropY = -1, -1
+                AutoDrop.X = -1
+                AutoDrop.Y = -1
+                AutoDrop.World = ""]==],
+    },
+    { name = "status titik drop lama", old = [==[UI.DropPointStatus = DTab:Paragraph({ Title = "Titik Drop", Desc = "-" })]==], new = [==[UI.DropPointStatus = nil]==] },
+    { name = "kotak drop world lain", old = [==[local dBox = box(DTab, "Atur titik drop", true)]==], new = [==[local dBox = box(DTab, "Lanjutan: drop di world lain", false)]==] },
+}
+
+---------------------------------------------------------------------
+-- WORLD FINDER v11: lebih cepat & lebih pintar
+--  1. JALUR CEPAT: kalau metadata world sudah bilang ada pemilik, langsung
+--     "terkunci" tanpa scan seluruh foreground dulu.
+--  2. INGAT YANG SUDAH DICEK: nama world yang terkunci disimpan di config
+--     (WorldFinder.Seen, string dipisah koma, max ~4000 karakter terakhir),
+--     jadi run berikutnya tidak buang hop untuk mengeceknya lagi. World
+--     "unknown" TIDAK disimpan, jadi akan dicek ulang lain kali.
+--  3. KUMPUL SAMPAI 5: tidak berhenti di world tanpa lock pertama. Lanjut
+--     hunting sampai MaxFound = 5, webhook dikirim tiap ketemu. PERHATIAN:
+--     bot akan MENINGGALKAN world tanpa lock itu untuk cek berikutnya, jadi
+--     klaim dari notifikasi webhook secepatnya. Ubah MaxFound jadi 1 di bawah
+--     kalau mau kembali ke perilaku lama (berhenti & tetap di world).
+--  4. LEWATI DELAY kalau warp gagal: tidak tunggu 5-8 detik sia-sia.
+--  5. COBA ULANG yang "belum pasti": world unknown dicek sekali lagi di akhir
+--     antrean, sebelum rangkuman dikirim.
+---------------------------------------------------------------------
+local FINDER11 = {
+    {
+        name = "jalur cepat metadata lock",
+        old = [==[        local lockCounts, missing, nonzero, checksum = {}, false, 0, 0]==],
+        new = [==[        local lockCounts, missing, nonzero, checksum = {}, false, 0, 0
+        do local _hasOwner = metadataLock(rawget(w, "lock")) if _hasOwner then local _r = { kind = "locked", detail = "World lock terdeteksi dari metadata pemilik" } _r.fingerprint = "locked:" .. _r.detail .. ":0:0" return _r end end]==],
+    },
+        {
+        name = "field MaxFound dan Seen",
+        old = [==[    Status = "Off",
+    Results = {},
+    FoundNames = {},
+    Logs = {},
+}]==],
+        new = [==[    Status = "Off",
+    Results = {},
+    FoundNames = {},
+    Logs = {},
+    MaxFound = 5,
+    Seen = "",
+}]==],
+    },
+    {
+        name = "simpan Seen dan MaxFound di config",
+        old = [==[Config.add("WorldFinder", WorldFinder, { "Mode", "Custom", "Manual", "Limit", "DelaySec", "WebhookEach" })]==],
+        new = [==[Config.add("WorldFinder", WorldFinder, { "Mode", "Custom", "Manual", "Limit", "DelaySec", "WebhookEach", "MaxFound", "Seen" })]==],
+    },
+    {
+        name = "lewati nama yang sudah dicek terkunci",
+        old = [==[            if not hasEntry then break end
+            index += 1
+        end
+        return out
+    end]==],
+        new = [==[            if not hasEntry then break end
+            index += 1
+        end
+        local _seenSet = {}
+        for _n in tostring(WorldFinder.Seen or ""):gmatch("[^,]+") do _seenSet[_n] = true end
+        local _filtered = {}
+        for _, _n in ipairs(out) do if not _seenSet[_n] then _filtered[#_filtered + 1] = _n end end
+        return _filtered
+    end]==],
+    },
+    {
+        name = "ingat world terkunci",
+        old = [==[    function WorldFinder.record(name, result)
+        WorldFinder.Checked += 1]==],
+        new = [==[    function WorldFinder.record(name, result)
+        WorldFinder.Checked += 1
+        if result.kind == "locked" and not tostring(WorldFinder.Seen or ""):find("," .. name .. ",", 1, true) then
+            WorldFinder.Seen = (tostring(WorldFinder.Seen or "") .. "," .. name .. ","):sub(-4000)
+            pcall(Config.save, true)
+        end]==],
+    },
+        {
+        name = "kumpul sampai MaxFound, bukan berhenti di 1",
+        old = [==[                    if result.kind == "unlocked" then
+                        WorldFinder.checkpoint(false)
+                        WorldFinder.log("Found an unlocked world. Staying in " .. name .. ".")
+                        break
+                    end]==],
+        new = [==[                    if result.kind == "unlocked" then
+                        WorldFinder.checkpoint(false)
+                        if WorldFinder.Found >= (WorldFinder.MaxFound or 1) then
+                            WorldFinder.log("Found " .. WorldFinder.Found .. " unlocked worlds. Staying in " .. name .. ".")
+                            break
+                        end
+                    end]==],
+    },
+    {
+        name = "lewati delay kalau warp gagal",
+        old = [==[                        local delay = math.max(5, tonumber(WorldFinder.DelaySec) or 8)]==],
+        new = [==[                        local delay = result.kind == "failed" and 0 or math.max(5, tonumber(WorldFinder.DelaySec) or 8)]==],
+    },
+    {
+        name = "siapkan daftar coba-ulang",
+        old = [==[                if not waitFor(1.2, live) then return end
+                for index = WorldFinder.Index, #queue do]==],
+        new = [==[                if not waitFor(1.2, live) then return end
+                local retry = {}
+                for index = WorldFinder.Index, #queue do]==],
+    },
+    {
+        name = "kumpulkan world unknown",
+        old = [==[                    WorldFinder.record(name, result)
+                    if result.kind == "unlocked" then]==],
+        new = [==[                    WorldFinder.record(name, result)
+                    if result.kind == "unknown" then retry[#retry + 1] = name end
+                    if result.kind == "unlocked" then]==],
+    },
+    {
+        name = "coba ulang world unknown di akhir",
+        old = [==[                end
+            end)
+            local finished = live()]==],
+        new = [==[                end
+                if WorldFinder.Found < (WorldFinder.MaxFound or 5) and #retry > 0 then
+                    WorldFinder.log("Coba ulang " .. #retry .. " world yang belum pasti.")
+                    for _, rname in ipairs(retry) do
+                        if not live() or WorldFinder.Found >= (WorldFinder.MaxFound or 5) then break end
+                        WorldFinder.log("Coba ulang: " .. rname)
+                        local rentered, rmsg = WorldFinder.warp(rname, live)
+                        if live() then
+                            local rresult = rentered and inspectLoaded(rname, live) or { kind = "failed", detail = rmsg }
+                            if live() then WorldFinder.record(rname, rresult) end
+                        end
+                    end
+                end
+            end)
+            local finished = live()]==],
+    },
+}
+
+---------------------------------------------------------------------
+-- AUTO DIRT FARM 24/7 (AUTODF): cari world 4 huruf tanpa lock, bangun
+-- Dirt Farm di sana sampai selesai, lalu pindah ke world kosong berikut.
+--  - Hunting pakai WorldFinder.warp + inspectLoaded yang sama dengan
+--    World Finder (jadi cek lock-nya sama persis, termasuk jalur cepat
+--    metadata dan Seen dari FINDER11).
+--  - Build.stop sudah kirim webhook "pabrik" dengan alasan selesainya;
+--    AUTODF kirim webhook "finder" tambahan saat mulai bangun di world
+--    baru, saat selesai, dan tiap batch 100 world tanpa hasil.
+--  - World yang sudah selesai dibangun dicatat ke WorldFinder.Seen supaya
+--    tidak dicari lagi (sudah tidak kosong).
+--  - On=true disimpan di config, jadi setelah teleport / reload script
+--    (rejoin memuat loader ini lagi) AUTODF lanjut sendiri.
+--  - SYARAT: area Dirt Farm harus sudah diatur di tab Dirt Farm
+--    (X0/X1/Y0/Y1, Gali dulu on/off), dan bawa Dirt / Dirt Seed yang cukup.
+--    Kalau Dirt habis, Dirt Farm berhenti sendiri dan AUTODF pindah ke
+--    world berikutnya — isi ulang Dirt dulu kalau mau farm terus.
+--  - AUTODF versi ini TIDAK mengunci world otomatis. World yang ketemu
+--    harus dikunci manual kalau mau aman.
+---------------------------------------------------------------------
+local AUTODFTAB = {
+    {
+        name = "AutoDF: tab baru di daftar tab",
+        old = [==[            { "Dirt Farm", "Auto Dirt Farm" },]==],
+        new = [==[            { "Dirt Farm", "Auto Dirt Farm" },
+            { "AutoDF", "Auto Dirt Farm 24/7" },]==],
+    },
+}
+
+local AUTODF = {
+        {
+        name = "AutoDF: fungsi & auto-lanjut",
+        old = [==[    function WorldFinder.stop()
+        WorldFinder.Running = false
+        WorldFinder.Cancelled = true
+        WorldFinder.Teleporting = false
+        WorldFinder.Saved = nil
+        WorldFinder.EndedAt = os.clock()
+        writeStopMarker()
+        WorldFinder.checkpoint(false)
+        if WorldFinder.Busy then WorldFinder.log("Stop requested. Cancelling active step...") end
+    end]==],
+        new = [==[    function WorldFinder.stop()
+        WorldFinder.Running = false
+        WorldFinder.checkpoint(false)
+        if WorldFinder.Busy then WorldFinder.log("Berhenti diminta. Menunggu proses aktif selesai.") end
+    end
+
+    WorldFinder.AutoDF = { On = false, Running = false, Done = 0, Checked = 0, Batch = 100, Current = "" }
+    Config.add("AutoDF", WorldFinder.AutoDF, { "On", "Done", "Checked", "Current" })
+
+    function WorldFinder.autoDFStop()
+        local df = WorldFinder.AutoDF
+        df.On = false
+        df.Current = ""
+        if Build.Running and Build.DirtRun then Build.stop("Dihentikan") end
+        WorldFinder.log("Auto Dirt Farm dimatikan.")
+        pcall(Config.save, true)
+    end
+
+    -- Deteksi permukaan dirt di world ini (baris pertama yang padat),
+    -- lalu set area Dirt Farm otomatis seperti cara manual (sudut kiri-atas
+    -- = permukaan, sudut kanan-bawah = bedrock, Gali dulu nyala).
+    local function autoDFArea()
+        local w = Refs.World
+        if not w or not w.w or not w.h then return false end
+        local W, H = w.w, w.h
+        local function rowSolid(y)
+            local n = 0
+            for x = 0, W - 1 do
+                local it = ItemDB[fgIdAt(x, y)]
+                if it and it.solid and it.kind ~= "seed" then n += 1 end
+            end
+            return n * 2 > W
+        end
+        local surface = nil
+        for y = 0, H - 2 do
+            if rowSolid(y) and rowSolid(y + 1) then surface = y break end
+        end
+        if not surface then return false end
+        Build.Dirt.X0 = 0
+        Build.Dirt.X1 = 99
+        Build.Dirt.Y0 = surface
+        Build.Dirt.Y1 = -1
+        Build.Dirt.Dig = true
+        pcall(Config.save, true)
+        return true, surface
+    end
+
+    function WorldFinder.autoDFStart()
+        local df = WorldFinder.AutoDF
+        if df.Running then return end
+        if not Session.Ready or not Refs.World or not Guard.enterWorld then
+            notify("Auto Dirt Farm", "Hubungkan ke game dulu", 4)
+            return
+        end
+        df.On, df.Running = true, true
+        pcall(Config.save, true)
+        WorldFinder.log("Auto Dirt Farm 24/7 dimulai: cari world 4 huruf tanpa lock.")
+        Hook.send("finder", "Auto Dirt Farm dimulai\nMencari world 4 huruf tanpa lock, lalu bangun Dirt Farm sampai selesai.")
+        task.spawn(function()
+            local function live()
+                return alive() and df.On and not WorldFinder.Busy
+            end
+            while df.On and alive() do
+                if WorldFinder.Busy then
+                    task.wait(2)
+                else
+                    local target = nil
+                    local waitForChar = false
+                    -- Lanjut dari world yang baru dimasuki sebelum reload: Current
+                    -- tersimpan di config, jadi habis reload kita cek world itu dulu
+                    -- sebelum pindah ke world lain. Tanpa ini AutoDF lupa world yang
+                    -- baru dimasuki dan langsung pindah lagi (loop pindah world).
+                    if df.Current ~= "" and Guard.worldName() ~= "" then
+                        if Guard.worldName() == df.Current then
+                            if Auto.here() then
+                                local result = inspectLoaded(df.Current, live)
+                                if live() then
+                                    df.Checked += 1
+                                    WorldFinder.record(df.Current, result)
+                                    if result.kind == "unlocked" then target = df.Current end
+                                end
+                                df.Current = ""
+                                pcall(Config.save, true)
+                            else
+                                waitForChar = true
+                            end
+                        else
+                            df.Current = ""
+                            pcall(Config.save, true)
+                        end
+                    elseif df.Current ~= "" then
+                        waitForChar = true
+                    end
+                    if waitForChar then
+                        task.wait(2)
+                    elseif live() and not target then
+                        local batch = WorldFinder.candidates("4 Huruf", df.Batch)
+                        for _, name in ipairs(batch) do
+                            if not live() then break end
+                            df.Current = name
+                            pcall(Config.save, true)
+                            -- AutoDF jalan tanpa World Finder: antrean Finder masih kosong,
+                            -- jadi checkpoint teleport tersimpan kosong dan script tidak ke-load
+                            -- lagi habis pindah world (tanpa error). Isi antrean kosong dulu
+                            -- supaya checkpoint valid dan loader jalan lagi di server baru.
+                            if not WorldFinder.Queue or #WorldFinder.Queue == 0 then
+                                WorldFinder.Queue, WorldFinder.Index = {}, 1
+                            end
+                            local entered = WorldFinder.warp(name, live)
+                            if not live() then break end
+                            local result = entered and inspectLoaded(name, live) or { kind = "failed", detail = "World tidak bisa dimasuki" }
+                            if live() then
+                                df.Checked += 1
+                                WorldFinder.record(name, result)
+                                if result.kind == "unlocked" then target = name break end
+                            end
+                        end
+                        if not target then
+                            df.Current = ""
+                            pcall(Config.save, true)
+                        end
+                    end
+                    if live() and target then
+                        df.Current = target
+                        WorldFinder.log("Auto Dirt Farm: bangun di " .. target)
+                        Hook.send("finder", ("Auto Dirt Farm — ketemu world kosong: %s\nMulai bangun Dirt Farm. Selesai nanti pindah ke world kosong berikutnya."):format(target))
+                        local _okArea, _surf = autoDFArea()
+                        if _okArea then
+                            WorldFinder.log("Auto Dirt Farm: area diset otomatis (Y0=" .. tostring(_surf) .. ", X 0-99, sampai bedrock, Gali dulu nyala).")
+                        else
+                            WorldFinder.log("Auto Dirt Farm: permukaan tidak ketemu, pakai area lama (Y0=" .. tostring(Build.Dirt.Y0) .. ").")
+                        end
+                        Build.start(true)
+                        task.wait(2)
+                        if live() and Build.Running and Build.DirtRun then
+                            while live() and Build.Running and Build.DirtRun do task.wait(2) end
+                            local reason = Build.DirtPhase or Build.Phase or "selesai"
+                            df.Done += 1
+                            if not tostring(WorldFinder.Seen or ""):find("," .. target .. ",", 1, true) then
+                                WorldFinder.Seen = (tostring(WorldFinder.Seen or "") .. "," .. target .. ","):sub(-4000)
+                            end
+                            pcall(Config.save, true)
+                            WorldFinder.log(("Auto Dirt Farm selesai di %s (%s). Total selesai: %d."):format(target, reason, df.Done))
+                            if live() then Hook.send("finder", ("Auto Dirt Farm — selesai di %s\n%s\nTotal selesai: %d. Cari world 4 huruf kosong berikutnya."):format(target, reason, df.Done)) end
+                        else
+                            WorldFinder.log("Auto Dirt Farm tidak bisa jalan di " .. target .. " — dilewati.")
+                            if not tostring(WorldFinder.Seen or ""):find("," .. target .. ",", 1, true) then
+                                WorldFinder.Seen = (tostring(WorldFinder.Seen or "") .. "," .. target .. ","):sub(-4000)
+                            end
+                            pcall(Config.save, true)
+                            if live() then Hook.send("finder", ("Auto Dirt Farm — gagal jalan di %s\nWorld dilewati, cari berikutnya. Cek area Dirt Farm & stok Dirt/Dirt Seed."):format(target)) end
+                        end
+                        -- World sudah selesai / dilewati: hapus Current supaya tidak
+                        -- dicek ulang di iterasi berikut.
+                        df.Current = ""
+                        pcall(Config.save, true)
+                    elseif live() and not waitForChar then
+                        WorldFinder.log("Auto Dirt Farm: batch 4 huruf habis tanpa world kosong, lanjut batch berikutnya.")
+                        Hook.send("finder", ("Auto Dirt Farm: %d world 4 huruf dicek, belum ada yang kosong. Lanjut batch berikutnya."):format(df.Checked))
+                    end
+                end
+            end
+            df.Running, df.Current = false, ""
+            WorldFinder.log("Auto Dirt Farm berhenti.")
+        end)
+    end
+
+    -- [TEST] Auto-resume dimatikan sementara untuk tes freeze.
+    -- (AutoDF tetap bisa dijalankan manual lewat tombol Start di tab.)
+
+    -- Tab Auto Dirt Farm 24/7 (terpisah): tombol Start/Stop + status.
+    -- Dibangun di sini setelah fungsi AutoDF didefinisikan; aman kalau tab
+    -- tidak ada (mis. patch AUTODFTAB dilewati) karena dibungkus safe().
+    safe(function()
+        local atab = UI.Tabs["AutoDF"]
+        if not atab then return end
+        UI.AutoDFStatus = atab:Paragraph({ Title = "Status", Desc = "Mati. Tekan Start untuk mulai." })
+        UI.AutoDFLogs = atab:Paragraph({ Title = "Log", Desc = "-" })
+        atab:Button({
+            Title = "Start",
+            Desc = "Cari world 4 huruf tanpa lock, bangun Dirt Farm sampai selesai, lalu pindah ke world kosong berikutnya. Berjalan 24/7 sampai Stop.",
+            Callback = function() WorldFinder.autoDFStart() end,
+        })
+        atab:Button({
+            Title = "Stop",
+            Desc = "Berhenti setelah langkah yang sedang berjalan selesai.",
+            Callback = function() WorldFinder.autoDFStop() end,
+        })
+    end)]==],
+    },
+    
+}
+
+---------------------------------------------------------------------
+-- WEBHOOK HARDCODE: paksa URL webhook + notifikasi nyala, apa pun isi config lama.
+-- Ditaruh SETELAH Config.add("Discord", ...) supaya tidak ditimpa config tersimpan.
+-- PERINGATAN: file ini sekarang berisi token webhook Discord. Jangan dibagikan
+-- ke orang lain — siapa pun yang punya file ini bisa kirim pesan ke channel itu.
+-- Kalau file ini bocor, hapus webhook itu di Discord dan buat yang baru.
+---------------------------------------------------------------------
+local WEBHOOK = {
+        {
+        name = "hardcode webhook Discord",
+        old = [==[Config.add("Discord", Hook, { "On", "Url", "Guard", "Stop", "Full", "Bonus", "Rejoin", "Factory", "Finder", "ReportMin" })]==],
+        new = [==[Config.add("Discord", Hook, { "On", "Url", "Guard", "Stop", "Full", "Bonus", "Rejoin", "Factory", "Finder", "ReportMin" })
+Hook.Url = "https://discord.com/api/webhooks/1571028705504006297/fWqBxgY647jmfADvWI85x1rNo5h06-RRqpuB9gfNx0CHzgarUJVoilad8EVuEzJ_i26R"
+Hook.On = true
+Hook.Finder = true]==],
+    },
+}
+
+-- Paksa setting Dirt Farm full world (lebar penuh, sampai bedrock, Gali dulu nyala).
+-- Ditaruh SETELAH Config.add("DirtFarm", ...) supaya tidak ditimpa config tersimpan.
+local DIRTFARM = {
+    {
+        name = "paksa area Dirt Farm full world",
+        old = [==[Config.add("DirtFarm", Build.Dirt, { "X0", "X1", "Y0", "Y1", "Dig" })]==],
+        new = [==[Config.add("DirtFarm", Build.Dirt, { "X0", "X1", "Y0", "Y1", "Dig" })
+Build.Dirt.X0 = 0
+Build.Dirt.X1 = 99
+Build.Dirt.Y0 = 2
+Build.Dirt.Y1 = -1
+Build.Dirt.Dig = true]==],
+    },
+}
+
+-- Semua teks harus muncul tepat 1x; kalau tidak, seluruh daftar dilewati.
+local function applyPatches(source, list)
+    local out = source
+    for _, p in ipairs(list) do
+        local s, e = out:find(p.old, 1, true)
+        if not s then return nil, p.name .. " (teks tidak ketemu)" end
+        if out:find(p.old, e + 1, true) then return nil, p.name .. " (muncul lebih dari satu kali)" end
+        out = out:sub(1, s - 1) .. p.new .. out:sub(e + 1)
+    end
+    return out
+end
+
+----------------------------------------------------------------
+
+local function download(url)
+    local lastError = "empty response"
+    local function checked(source)
+        if type(source) ~= "string" or source:match("^%s*$") then return nil, "empty response" end
+        if source:match("^%s*<") then return nil, "server returned HTML instead of script/metadata" end
+        if source:match("^%s*[45]%d%d[:%s]") then return nil, source:sub(1, 120) end
+        return source
+    end
+    local ok, source = pcall(function() return game:HttpGet(url) end)
+    if ok then
+        local valid, reason = checked(source)
+        if valid then return valid end
+        lastError = reason
+    else lastError = tostring(source) end
+    local seen = {}
+    for _, api in ipairs({ request or false, http_request or false, syn_request or false,
+        (syn and syn.request) or false, (http and http.request) or false, (fluxus and fluxus.request) or false }) do
+        if type(api) == "function" and not seen[api] then
+            seen[api] = true
+            local sent, response = pcall(api, { Url = url, Method = "GET" })
+            if sent and type(response) == "table" then
+                local status = tonumber(response.StatusCode or response.Status)
+                if status and (status < 200 or status >= 300) then
+                    lastError = "HTTP " .. tostring(status)
+                else
+                    local valid, reason = checked(response.Body or response.body)
+                    if valid then return valid end
+                    lastError = reason
+                end
+            elseif sent and type(response) == "string" then
+                local valid, reason = checked(response)
+                if valid then return valid end
+                lastError = reason
+            else lastError = tostring(response) end
+        end
+    end
+    local fetched, fallback = pcall(function() return httpService:GetAsync(url) end)
+    if fetched then
+        local valid, reason = checked(fallback)
+        if valid then return valid end
+        lastError = reason
+    end
+    error("[n4th] Download failed: " .. tostring(lastError), 0)
+end
+
+local function latestSource()
+    local ok, guid = pcall(function() return httpService:GenerateGUID(false) end)
+    local refUrl = "https://api.github.com/repos/" .. repository .. "/git/ref/heads/main?update=" .. tostring(ok and guid or os.time())
+    local ref = httpService:JSONDecode(download(refUrl))
+    local commit = type(ref) == "table" and type(ref.object) == "table" and ref.object.sha
+    if type(commit) ~= "string" or #commit ~= 40 or not commit:match("^%x+$") then
+        local reason = type(ref) == "table" and ref.message or "invalid metadata response"
+        error("Failed to check GitHub update: " .. tostring(reason), 0)
+    end
+    return download("https://raw.githubusercontent.com/" .. repository .. "/" .. commit .. "/n4th-main.lua"), commit
+end
+
+local function pickCompiled(source)
+    source = (source:gsub("\r\n", "\n"))
+    local fixed, fixProblem = applyPatches(source, FIX)
+    if not fixed then print("[AFK] Perbaikan kompilasi tidak dipasang: " .. tostring(fixProblem)) end
+    local current, added = fixed or source, {}
+    for _, feature in ipairs({ { "AFK", AFK }, { "Satu tab Drop", DROPUI }, { "FPS Boost", FPS }, { "Susunan menu", LAYOUT }, { "UI Farm", FARMUI }, { "Nama baru", RENAME }, { "Nama utimeme", BRAND }, { "Hubungkan otomatis", AUTOLINK }, { "Perbaikan dropdown", DROPFIX }, { "Perbaikan reconnect", REJOINFIX }, { "World Finder v11", FINDER11 }, { "Webhook hardcode", WEBHOOK }, { "Area Dirt Farm full", DIRTFARM }, { "Tab AutoDF", AUTODFTAB }, { "Auto Dirt Farm 24/7", AUTODF } }) do
+        local patched, problem = applyPatches(current, feature[2])
+        if patched then
+            current = patched
+            added[#added + 1] = feature[1]
+        else
+            print("[AFK] Fitur " .. feature[1] .. " dilewati: " .. tostring(problem))
+        end
+    end
+    local candidates = {}
+    if #added > 0 then
+        candidates[#candidates + 1] = {
+            text = current,
+            label = (fixed and "perbaikan + " or "") .. table.concat(added, " + "),
+        }
+    end
+    if fixed then candidates[#candidates + 1] = { text = fixed, label = "perbaikan saja" } end
+    candidates[#candidates + 1] = { text = source, label = "script asli" }
+    local lastCompileError
+    for _, c in ipairs(candidates) do
+        local fn, err = loadstring(c.text, "n4th-main")
+        if fn then return fn, c.label end
+        lastCompileError = tostring(err)
+        print("[AFK] Gagal dikompilasi (" .. c.label .. "): " .. lastCompileError)
+    end
+    return nil, lastCompileError
+end
+
+for attempt = 1, 3 do
+    local ok, source, commit = pcall(latestSource)
+    if not ok then
+        local primaryError = source
+        ok, source = pcall(download, "https://raw.githubusercontent.com/" .. repository .. "/refs/heads/main/n4th-main.lua")
+        if ok then commit = nil else source = tostring(primaryError) .. "\n" .. tostring(source) end
+    end
+    if ok then
+        local fn, label = pickCompiled(source)
+        if not fn then
+            reportFailure("[AFK] Semua versi gagal dikompilasi: " .. tostring(label))
+        end
+        print("[AFK] Menjalankan: " .. label .. " (versi " .. tostring(commit and commit:sub(1, 8) or "main") .. ")")
+        local ran, result = xpcall(fn, function(err)
+            if debug and type(debug.traceback) == "function" then return debug.traceback(tostring(err), 2) end
+            return tostring(err)
+        end)
+        if not ran then
+            local globals = _G
+            if type(getgenv) == "function" then
+                local found, value = pcall(getgenv)
+                if found and type(value) == "table" then globals = value end
+            end
+            local session = globals.__n4thOpus
+            local step = session and session.InitStep or "script initialization"
+            reportFailure("[AFK] Gagal saat " .. tostring(step) .. ":\n" .. tostring(result))
+        end
+        return result
+    end
+    lastError = tostring(source)
+    if attempt < 3 then task.wait(1) end
+end
+reportFailure("[AFK] Gagal mengambil script setelah 3 percobaan: " .. lastError)
