@@ -253,7 +253,6 @@ end)() end]==],
     },
 }
 
-
 ---------------------------------------------------------------------
 -- SUSUNAN MENU BARU: grup, urutan & nama tab
 --   Farming: Auto Farm, Harvest, Splice | World: Clear World, Dirt Farm, Pabrik
@@ -367,7 +366,6 @@ Box.SetPerf = box(makeTab("Performa", "gauge", "setel"), "Performa", true)]==],
     },
 }
 
-
 ---------------------------------------------------------------------
 -- RAPI-IN UI: tab Farm. Collect & kecepatan (global) pindah ke Setelan > Umum,
 -- Auto Break Block pindah ke tab Clear World.
@@ -435,7 +433,6 @@ local RENAME = {
     { name = "Aktifkan Penjaga", old = [==[Title = "Aktifkan Penjaga",]==], new = [==[Title = "Aktifkan Auto Mods",]==] },
 }
 
-
 ---------------------------------------------------------------------
 -- NAMA: n4th -> utimeme (judul menu, tombol buka, watermark nama di atas karakter, notifikasi)
 -- Nama folder config dan nama internal tidak diubah, supaya pengaturan lama tidak hilang.
@@ -451,7 +448,6 @@ local BRAND = {
     { name = "tes World Finder", old = [==["World Finder siap mengirim hasil hunting dari n4th"]==], new = [==["World Finder siap mengirim hasil hunting dari utimeme"]==] },
     { name = "notifikasi koneksi", old = [==[reconnect("n4th v5.2")]==], new = [==[reconnect("utimeme")]==] },
 }
-
 
 ---------------------------------------------------------------------
 -- HUBUNGKAN OTOMATIS: kalau sudah di dalam world tapi data world / tas belum ketemu
@@ -484,7 +480,6 @@ Session.InitStep = "siap"]==],
     },
 }
 
-
 ---------------------------------------------------------------------
 -- PERBAIKAN DROPDOWN: isi daftar langsung dulu; kalau gagal baru lewat jalur izin penuh (lama)
 ---------------------------------------------------------------------
@@ -505,7 +500,6 @@ function UI.ddRefreshElevated(dd, labels)]==],
     },
 }
 
-
 ---------------------------------------------------------------------
 -- PERBAIKAN AUTO RECONNECT / AUTO JOIN
 --  1. "berhasil masuk" harus benar-benar sudah ada di world tujuan (nama cocok + karakter muncul)
@@ -513,15 +507,17 @@ function UI.ddRefreshElevated(dd, labels)]==],
 --  3. Rejoin setelah disconnect server memuat script kita, bukan link n4th asli
 ---------------------------------------------------------------------
 local REJOINFIX = {
-    {
+        {
         name = "batas waktu masuk world",
-        old = [==[while alive() and os.clock() - t0 < 8 do]==],
-        new = [==[while alive() and os.clock() - t0 < 25 do]==],
+        old = [==[        if not ok then return false, tostring(reason or "World cannot be entered") end
+        if not waitFor(1.5, live) then return false, "Stopped" end]==],
+        new = [==[        if not ok then return false, tostring(reason or "World cannot be entered") end
+        if not waitFor(8, live) then return false, "Stopped" end]==],
     },
-    {
+        {
         name = "cek berhasil masuk",
-        old = [==[if rawget(w, "fg") ~= oldFg then return true end]==],
-        new = [==[if rawget(w, "fg") ~= oldFg and string.upper(worldName()) == string.upper(tostring(name)) and Auto.here() then return true end]==],
+        old = [==[        return Guard.worldName() == name, "Destination world not readable yet"]==],
+        new = [==[        return Guard.worldName() == name, "Destination world not readable yet"]==],
     },
     {
         name = "deteksi di luar world",
@@ -548,7 +544,6 @@ end]==],
         if url ~= "" then url = url .. (url:find("?", 1, true) and "&t=" or "?t=") .. os.time() end]==],
     },
 }
-
 
 ---------------------------------------------------------------------
 -- SATU TAB DROP: satu toggle (Auto Drop), satu tombol set titik, sisanya di "Lanjutan"
@@ -602,7 +597,6 @@ local DROPUI = {
     { name = "kotak drop world lain", old = [==[local dBox = box(DTab, "Atur titik drop", true)]==], new = [==[local dBox = box(DTab, "Lanjutan: drop di world lain", false)]==] },
 }
 
-
 ---------------------------------------------------------------------
 -- WORLD FINDER v11: lebih cepat & lebih pintar
 --  1. JALUR CEPAT: kalau metadata world sudah bilang ada pemilik, langsung
@@ -627,23 +621,20 @@ local FINDER11 = {
         new = [==[        local lockCounts, missing, nonzero, checksum = {}, false, 0, 0
         do local _hasOwner = metadataLock(rawget(w, "lock")) if _hasOwner then local _r = { kind = "locked", detail = "World lock terdeteksi dari metadata pemilik" } _r.fingerprint = "locked:" .. _r.detail .. ":0:0" return _r end end]==],
     },
-    {
+        {
         name = "field MaxFound dan Seen",
-        old = [==[    Checked = 0, Found = 0, Locked = 0, Unknown = 0, Failed = 0,
-    Status = "Mati",
+        old = [==[    Status = "Off",
     Results = {},
     FoundNames = {},
     Logs = {},
-}
-]==],
-        new = [==[    Checked = 0, Found = 0, Locked = 0, Unknown = 0, Failed = 0,
-    Status = "Mati",
+}]==],
+        new = [==[    Status = "Off",
     Results = {},
     FoundNames = {},
-    MaxFound = 5, Seen = "",
     Logs = {},
-}
-]==],
+    MaxFound = 5,
+    Seen = "",
+}]==],
     },
     {
         name = "simpan Seen dan MaxFound di config",
@@ -678,17 +669,19 @@ local FINDER11 = {
             pcall(Config.save, true)
         end]==],
     },
-    {
+        {
         name = "kumpul sampai MaxFound, bukan berhenti di 1",
         old = [==[                    if result.kind == "unlocked" then
                         WorldFinder.checkpoint(false)
-                        WorldFinder.log("Ketemu world tanpa lock. Tetap di " .. name .. ".")
+                        WorldFinder.log("Found an unlocked world. Staying in " .. name .. ".")
                         break
                     end]==],
         new = [==[                    if result.kind == "unlocked" then
                         WorldFinder.checkpoint(false)
-                        WorldFinder.log("Ketemu world tanpa lock: " .. name .. " (" .. WorldFinder.Found .. "/" .. tostring(WorldFinder.MaxFound or 5) .. ").")
-                        if WorldFinder.Found >= (WorldFinder.MaxFound or 5) then break end
+                        if WorldFinder.Found >= (WorldFinder.MaxFound or 1) then
+                            WorldFinder.log("Found " .. WorldFinder.Found .. " unlocked worlds. Staying in " .. name .. ".")
+                            break
+                        end
                     end]==],
     },
     {
@@ -735,7 +728,6 @@ local FINDER11 = {
     },
 }
 
-
 ---------------------------------------------------------------------
 -- AUTO DIRT FARM 24/7 (AUTODF): cari world 4 huruf tanpa lock, bangun
 -- Dirt Farm di sana sampai selesai, lalu pindah ke world kosong berikut.
@@ -756,13 +748,27 @@ local FINDER11 = {
 --  - AUTODF versi ini TIDAK mengunci world otomatis. World yang ketemu
 --    harus dikunci manual kalau mau aman.
 ---------------------------------------------------------------------
-local AUTODF = {
+local AUTODFTAB = {
     {
+        name = "AutoDF: tab baru di daftar tab",
+        old = [==[            { "Dirt Farm", "Auto Dirt Farm" },]==],
+        new = [==[            { "Dirt Farm", "Auto Dirt Farm" },
+            { "AutoDF", "Auto Dirt Farm 24/7" },]==],
+    },
+}
+
+local AUTODF = {
+        {
         name = "AutoDF: fungsi & auto-lanjut",
         old = [==[    function WorldFinder.stop()
         WorldFinder.Running = false
+        WorldFinder.Cancelled = true
+        WorldFinder.Teleporting = false
+        WorldFinder.Saved = nil
+        WorldFinder.EndedAt = os.clock()
+        writeStopMarker()
         WorldFinder.checkpoint(false)
-        if WorldFinder.Busy then WorldFinder.log("Berhenti diminta. Menunggu proses aktif selesai.") end
+        if WorldFinder.Busy then WorldFinder.log("Stop requested. Cancelling active step...") end
     end]==],
         new = [==[    function WorldFinder.stop()
         WorldFinder.Running = false
@@ -941,35 +947,29 @@ local AUTODF = {
             end
             task.wait(2)
         end
-    end)]==],
-    },
-    {
-        name = "AutoDF: toggle di tab World Finder",
-        old = [==[    safe(function()
-        controls:Button({
-            Title = "Mulai cari",
-            Desc = "Masuk ke kandidat untuk cek lock. Berhenti saat ketemu world tanpa lock.",
-            Callback = function() WorldFinder.start() end,
-        })
-    end)]==],
-        new = [==[    safe(function()
-        controls:Button({
-            Title = "Mulai cari",
-            Desc = "Masuk ke kandidat untuk cek lock. Berhenti saat ketemu world tanpa lock.",
-            Callback = function() WorldFinder.start() end,
-        })
     end)
+
+    -- Tab Auto Dirt Farm 24/7 (terpisah): tombol Start/Stop + status.
+    -- Dibangun di sini setelah fungsi AutoDF didefinisikan; aman kalau tab
+    -- tidak ada (mis. patch AUTODFTAB dilewati) karena dibungkus safe().
     safe(function()
-        controls:Toggle({
-            Title = "Auto Dirt Farm 24/7",
-            Desc = "Cari world 4 huruf tanpa lock, bangun Dirt Farm sampai selesai, lalu pindah ke world kosong berikutnya. Log dikirim ke webhook.",
-            Value = WorldFinder.AutoDF.On,
-            Callback = function(on)
-                if on then WorldFinder.autoDFStart() else WorldFinder.autoDFStop() end
-            end,
+        local atab = UI.Tabs["AutoDF"]
+        if not atab then return end
+        UI.AutoDFStatus = atab:Paragraph({ Title = "Status", Desc = "Mati. Tekan Start untuk mulai." })
+        UI.AutoDFLogs = atab:Paragraph({ Title = "Log", Desc = "-" })
+        atab:Button({
+            Title = "Start",
+            Desc = "Cari world 4 huruf tanpa lock, bangun Dirt Farm sampai selesai, lalu pindah ke world kosong berikutnya. Berjalan 24/7 sampai Stop.",
+            Callback = function() WorldFinder.autoDFStart() end,
+        })
+        atab:Button({
+            Title = "Stop",
+            Desc = "Berhenti setelah langkah yang sedang berjalan selesai.",
+            Callback = function() WorldFinder.autoDFStop() end,
         })
     end)]==],
     },
+    
 }
 
 ---------------------------------------------------------------------
@@ -980,10 +980,10 @@ local AUTODF = {
 -- Kalau file ini bocor, hapus webhook itu di Discord dan buat yang baru.
 ---------------------------------------------------------------------
 local WEBHOOK = {
-    {
+        {
         name = "hardcode webhook Discord",
-        old = [==[Config.add("Discord", Hook, { "On", "Url", "Penjaga", "Stop", "Full", "Bonus", "Rejoin", "Pabrik", "Finder", "ReportMin" })]==],
-        new = [==[Config.add("Discord", Hook, { "On", "Url", "Penjaga", "Stop", "Full", "Bonus", "Rejoin", "Pabrik", "Finder", "ReportMin" })
+        old = [==[Config.add("Discord", Hook, { "On", "Url", "Guard", "Stop", "Full", "Bonus", "Rejoin", "Factory", "Finder", "ReportMin" })]==],
+        new = [==[Config.add("Discord", Hook, { "On", "Url", "Guard", "Stop", "Full", "Bonus", "Rejoin", "Factory", "Finder", "ReportMin" })
 Hook.Url = "https://discord.com/api/webhooks/1571028705504006297/fWqBxgY647jmfADvWI85x1rNo5h06-RRqpuB9gfNx0CHzgarUJVoilad8EVuEzJ_i26R"
 Hook.On = true
 Hook.Finder = true]==],
@@ -1081,7 +1081,7 @@ local function pickCompiled(source)
     local fixed, fixProblem = applyPatches(source, FIX)
     if not fixed then print("[AFK] Perbaikan kompilasi tidak dipasang: " .. tostring(fixProblem)) end
     local current, added = fixed or source, {}
-    for _, feature in ipairs({ { "AFK", AFK }, { "Satu tab Drop", DROPUI }, { "FPS Boost", FPS }, { "Susunan menu", LAYOUT }, { "UI Farm", FARMUI }, { "Nama baru", RENAME }, { "Nama utimeme", BRAND }, { "Hubungkan otomatis", AUTOLINK }, { "Perbaikan dropdown", DROPFIX }, { "Perbaikan reconnect", REJOINFIX }, { "World Finder v11", FINDER11 }, { "Webhook hardcode", WEBHOOK }, { "Area Dirt Farm full", DIRTFARM }, { "Auto Dirt Farm 24/7", AUTODF } }) do
+    for _, feature in ipairs({ { "AFK", AFK }, { "Satu tab Drop", DROPUI }, { "FPS Boost", FPS }, { "Susunan menu", LAYOUT }, { "UI Farm", FARMUI }, { "Nama baru", RENAME }, { "Nama utimeme", BRAND }, { "Hubungkan otomatis", AUTOLINK }, { "Perbaikan dropdown", DROPFIX }, { "Perbaikan reconnect", REJOINFIX }, { "World Finder v11", FINDER11 }, { "Webhook hardcode", WEBHOOK }, { "Area Dirt Farm full", DIRTFARM }, { "Tab AutoDF", AUTODFTAB }, { "Auto Dirt Farm 24/7", AUTODF } }) do
         local patched, problem = applyPatches(current, feature[2])
         if patched then
             current = patched
