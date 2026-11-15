@@ -926,7 +926,21 @@ local AUTODF = {
         end)
     end
 
-    -- [Revert] Auto-resume dimatikan (dicurigai bikin freeze). Jalankan manual lewat toggle.]==],
+    -- Lanjut sendiri setelah teleport / reload (rejoin memuat loader ini lagi).
+    -- Dijeda 15 detik setelah Session siap biar game sempat stabil dulu (anti-freeze).
+    task.spawn(function()
+        local deadline = os.clock() + 300
+        while alive() and os.clock() < deadline do
+            if WorldFinder.AutoDF.On and Session.Ready and Refs.World and not WorldFinder.Busy and not WorldFinder.AutoDF.Running then
+                task.wait(15)
+                if WorldFinder.AutoDF.On and not WorldFinder.AutoDF.Running then
+                    WorldFinder.autoDFStart()
+                end
+                break
+            end
+            task.wait(2)
+        end
+    end)]==],
     },
         {
         name = "AutoDF: toggle di tab World Finder",
