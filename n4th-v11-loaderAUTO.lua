@@ -1,28 +1,17 @@
--- n4th v11 (new base) + perbaikan error kompilasi + AFK Drop Semua Seed + FPS Boost + susunan menu baru + World Finder v11
--- Base loader baru: cek commit terbaru, unduh dari URL commit itu, notifikasi gagal via StarterGui.
--- Tiap bagian patch dipasang sendiri-sendiri. Kalau salah satu tidak cocok dengan script terbaru,
+-- n4th + perbaikan error kompilasi + AFK Drop Semua Seed + FPS Boost + susunan menu baru + World Finder v11 (v11)
+-- Tiap bagian dipasang sendiri-sendiri. Kalau salah satu tidak cocok dengan script terbaru,
 -- bagian itu dilewati dan yang lain tetap jalan. Urutan percobaan kompilasi:
 --   semua yang berhasil dipasang  ->  perbaikan saja  ->  script asli.
--- v11: World Finder lebih cepat & lebih pintar — lihat tabel FINDER11 di bawah.
--- v11: Auto Dirt Farm 24/7 — cari world 4 huruf tanpa lock, bangun Dirt Farm
+-- v11 (baru di file ini): World Finder lebih cepat & lebih pintar — lihat tabel FINDER11 di bawah.
+-- v11 (baru): Auto Dirt Farm 24/7 — cari world 4 huruf tanpa lock, bangun Dirt Farm
 -- sampai selesai, lalu pindah ke world kosong berikutnya. Lihat tabel AUTODF di bawah.
-
-assert(type(loadstring) == "function", "[n4th] Executor does not provide loadstring after update.")
+assert(type(loadstring) == "function", "[AFK] Executor tidak menyediakan loadstring")
 local repository = "ZennJxD/n4th"
 local httpService = game:GetService("HttpService")
-local lastError = "empty response"
 
-local function reportFailure(message)
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "n4th failed to load",
-            Text = message:sub(1, 180),
-            Duration = 8,
-        })
-    end)
-    error(message, 0)
-end
-
+---------------------------------------------------------------------
+-- PERBAIKAN: bungkus blok World Finder jadi fungsi (batas 200 variabel local)
+---------------------------------------------------------------------
 local FIX = {
     {
         name = "buka bungkus World Finder",
@@ -253,6 +242,7 @@ end)() end]==],
     },
 }
 
+
 ---------------------------------------------------------------------
 -- SUSUNAN MENU BARU: grup, urutan & nama tab
 --   Farming: Auto Farm, Harvest, Splice | World: Clear World, Dirt Farm, Pabrik
@@ -366,6 +356,7 @@ Box.SetPerf = box(makeTab("Performa", "gauge", "setel"), "Performa", true)]==],
     },
 }
 
+
 ---------------------------------------------------------------------
 -- RAPI-IN UI: tab Farm. Collect & kecepatan (global) pindah ke Setelan > Umum,
 -- Auto Break Block pindah ke tab Clear World.
@@ -433,6 +424,7 @@ local RENAME = {
     { name = "Aktifkan Penjaga", old = [==[Title = "Aktifkan Penjaga",]==], new = [==[Title = "Aktifkan Auto Mods",]==] },
 }
 
+
 ---------------------------------------------------------------------
 -- NAMA: n4th -> utimeme (judul menu, tombol buka, watermark nama di atas karakter, notifikasi)
 -- Nama folder config dan nama internal tidak diubah, supaya pengaturan lama tidak hilang.
@@ -448,6 +440,7 @@ local BRAND = {
     { name = "tes World Finder", old = [==["World Finder siap mengirim hasil hunting dari n4th"]==], new = [==["World Finder siap mengirim hasil hunting dari utimeme"]==] },
     { name = "notifikasi koneksi", old = [==[reconnect("n4th v5.2")]==], new = [==[reconnect("utimeme")]==] },
 }
+
 
 ---------------------------------------------------------------------
 -- HUBUNGKAN OTOMATIS: kalau sudah di dalam world tapi data world / tas belum ketemu
@@ -480,6 +473,7 @@ Session.InitStep = "siap"]==],
     },
 }
 
+
 ---------------------------------------------------------------------
 -- PERBAIKAN DROPDOWN: isi daftar langsung dulu; kalau gagal baru lewat jalur izin penuh (lama)
 ---------------------------------------------------------------------
@@ -499,6 +493,7 @@ end
 function UI.ddRefreshElevated(dd, labels)]==],
     },
 }
+
 
 ---------------------------------------------------------------------
 -- PERBAIKAN AUTO RECONNECT / AUTO JOIN
@@ -544,6 +539,7 @@ end]==],
         if url ~= "" then url = url .. (url:find("?", 1, true) and "&t=" or "?t=") .. os.time() end]==],
     },
 }
+
 
 ---------------------------------------------------------------------
 -- SATU TAB DROP: satu toggle (Auto Drop), satu tombol set titik, sisanya di "Lanjutan"
@@ -596,6 +592,7 @@ local DROPUI = {
     { name = "status titik drop lama", old = [==[UI.DropPointStatus = DTab:Paragraph({ Title = "Titik Drop", Desc = "-" })]==], new = [==[UI.DropPointStatus = nil]==] },
     { name = "kotak drop world lain", old = [==[local dBox = box(DTab, "Atur titik drop", true)]==], new = [==[local dBox = box(DTab, "Lanjutan: drop di world lain", false)]==] },
 }
+
 
 ---------------------------------------------------------------------
 -- WORLD FINDER v11: lebih cepat & lebih pintar
@@ -728,6 +725,7 @@ local FINDER11 = {
     },
 }
 
+
 ---------------------------------------------------------------------
 -- AUTO DIRT FARM 24/7 (AUTODF): cari world 4 huruf tanpa lock, bangun
 -- Dirt Farm di sana sampai selesai, lalu pindah ke world kosong berikut.
@@ -748,15 +746,6 @@ local FINDER11 = {
 --  - AUTODF versi ini TIDAK mengunci world otomatis. World yang ketemu
 --    harus dikunci manual kalau mau aman.
 ---------------------------------------------------------------------
-local AUTODFTAB = {
-    {
-        name = "AutoDF: tab baru di daftar tab",
-        old = [==[            { "Dirt Farm", "Auto Dirt Farm" },]==],
-        new = [==[            { "Dirt Farm", "Auto Dirt Farm" },
-            { "AutoDF", "Auto Dirt Farm 24/7" },]==],
-    },
-}
-
 local AUTODF = {
         {
         name = "AutoDF: fungsi & auto-lanjut",
@@ -937,39 +926,35 @@ local AUTODF = {
         end)
     end
 
-    -- Lanjut sendiri setelah teleport / reload (rejoin memuat loader ini lagi).
-    task.spawn(function()
-        local deadline = os.clock() + 300
-        while alive() and os.clock() < deadline do
-            if WorldFinder.AutoDF.On and Session.Ready and Refs.World and not WorldFinder.Busy and not WorldFinder.AutoDF.Running then
-                WorldFinder.autoDFStart()
-                break
-            end
-            task.wait(2)
-        end
-    end)
-
-    -- Tab Auto Dirt Farm 24/7 (terpisah): tombol Start/Stop + status.
-    -- Dibangun di sini setelah fungsi AutoDF didefinisikan; aman kalau tab
-    -- tidak ada (mis. patch AUTODFTAB dilewati) karena dibungkus safe().
-    safe(function()
-        local atab = UI.Tabs["AutoDF"]
-        if not atab then return end
-        UI.AutoDFStatus = atab:Paragraph({ Title = "Status", Desc = "Mati. Tekan Start untuk mulai." })
-        UI.AutoDFLogs = atab:Paragraph({ Title = "Log", Desc = "-" })
-        atab:Button({
-            Title = "Start",
-            Desc = "Cari world 4 huruf tanpa lock, bangun Dirt Farm sampai selesai, lalu pindah ke world kosong berikutnya. Berjalan 24/7 sampai Stop.",
-            Callback = function() WorldFinder.autoDFStart() end,
+    -- [Revert] Auto-resume dimatikan (dicurigai bikin freeze). Jalankan manual lewat toggle.]==],
+    },
+        {
+        name = "AutoDF: toggle di tab World Finder",
+        old = [==[    safe(function()
+        controls:Button({
+            Title = "Start search",
+            Desc = "Enter candidates to check locks. Stop when an unlocked world is found.",
+            Callback = function() WorldFinder.start() end,
         })
-        atab:Button({
-            Title = "Stop",
-            Desc = "Berhenti setelah langkah yang sedang berjalan selesai.",
-            Callback = function() WorldFinder.autoDFStop() end,
+    end)]==],
+        new = [==[    safe(function()
+        controls:Button({
+            Title = "Start search",
+            Desc = "Enter candidates to check locks. Stop when an unlocked world is found.",
+            Callback = function() WorldFinder.start() end,
+        })
+    end)
+    safe(function()
+        controls:Toggle({
+            Title = "Auto Dirt Farm 24/7",
+            Desc = "Cari world 4 huruf tanpa lock, bangun Dirt Farm sampai selesai, lalu pindah ke world kosong berikutnya. Log dikirim ke webhook.",
+            Value = WorldFinder.AutoDF.On,
+            Callback = function(on)
+                if on then WorldFinder.autoDFStart() else WorldFinder.autoDFStop() end
+            end,
         })
     end)]==],
     },
-    
 }
 
 ---------------------------------------------------------------------
@@ -1017,71 +1002,51 @@ local function applyPatches(source, list)
     return out
 end
 
-----------------------------------------------------------------
+---------------------------------------------------------------------
+-- DOWNLOAD
+---------------------------------------------------------------------
+local function usable(text)
+    return type(text) == "string" and not text:match("^%s*$") and not text:match("^%s*<")
+end
 
 local function download(url)
-    local lastError = "empty response"
-    local function checked(source)
-        if type(source) ~= "string" or source:match("^%s*$") then return nil, "empty response" end
-        if source:match("^%s*<") then return nil, "server returned HTML instead of script/metadata" end
-        if source:match("^%s*[45]%d%d[:%s]") then return nil, source:sub(1, 120) end
-        return source
-    end
-    local ok, source = pcall(function() return game:HttpGet(url) end)
-    if ok then
-        local valid, reason = checked(source)
-        if valid then return valid end
-        lastError = reason
-    else lastError = tostring(source) end
-    local seen = {}
-    for _, api in ipairs({ request or false, http_request or false, syn_request or false,
-        (syn and syn.request) or false, (http and http.request) or false, (fluxus and fluxus.request) or false }) do
-        if type(api) == "function" and not seen[api] then
-            seen[api] = true
-            local sent, response = pcall(api, { Url = url, Method = "GET" })
-            if sent and type(response) == "table" then
-                local status = tonumber(response.StatusCode or response.Status)
-                if status and (status < 200 or status >= 300) then
-                    lastError = "HTTP " .. tostring(status)
-                else
-                    local valid, reason = checked(response.Body or response.body)
-                    if valid then return valid end
-                    lastError = reason
-                end
-            elseif sent and type(response) == "string" then
-                local valid, reason = checked(response)
-                if valid then return valid end
-                lastError = reason
-            else lastError = tostring(response) end
+    local ok, body = pcall(function() return game:HttpGet(url) end)
+    if ok and usable(body) then return body end
+    for _, api in ipairs({ request or false, http_request or false, (syn and syn.request) or false, (http and http.request) or false }) do
+        if type(api) == "function" then
+            local sent, res = pcall(api, { Url = url, Method = "GET" })
+            if sent and type(res) == "table" then
+                local status = tonumber(res.StatusCode or res.Status)
+                local text = res.Body or res.body
+                if (not status or (status >= 200 and status < 300)) and usable(text) then return text end
+            end
         end
     end
-    local fetched, fallback = pcall(function() return httpService:GetAsync(url) end)
-    if fetched then
-        local valid, reason = checked(fallback)
-        if valid then return valid end
-        lastError = reason
-    end
-    error("[n4th] Download failed: " .. tostring(lastError), 0)
+    error("[AFK] Unduh gagal: " .. url, 0)
 end
 
 local function latestSource()
-    local ok, guid = pcall(function() return httpService:GenerateGUID(false) end)
-    local refUrl = "https://api.github.com/repos/" .. repository .. "/git/ref/heads/main?update=" .. tostring(ok and guid or os.time())
-    local ref = httpService:JSONDecode(download(refUrl))
-    local commit = type(ref) == "table" and type(ref.object) == "table" and ref.object.sha
-    if type(commit) ~= "string" or #commit ~= 40 or not commit:match("^%x+$") then
-        local reason = type(ref) == "table" and ref.message or "invalid metadata response"
-        error("Failed to check GitHub update: " .. tostring(reason), 0)
+    local okRef, ref = pcall(function()
+        local url = "https://api.github.com/repos/" .. repository .. "/git/ref/heads/main?update=" .. httpService:GenerateGUID(false)
+        return httpService:JSONDecode(download(url))
+    end)
+    local commit = okRef and type(ref) == "table" and type(ref.object) == "table" and ref.object.sha
+    if type(commit) == "string" and #commit == 40 and commit:match("^%x+$") then
+        local ok, body = pcall(download, "https://raw.githubusercontent.com/" .. repository .. "/" .. commit .. "/n4th-main.lua")
+        if ok then return body, commit:sub(1, 8) end
     end
-    return download("https://raw.githubusercontent.com/" .. repository .. "/" .. commit .. "/n4th-main.lua"), commit
+    return download("https://raw.githubusercontent.com/" .. repository .. "/main/n4th-main.lua"), "main"
 end
 
+---------------------------------------------------------------------
+-- JALANKAN
+---------------------------------------------------------------------
 local function pickCompiled(source)
     source = (source:gsub("\r\n", "\n"))
     local fixed, fixProblem = applyPatches(source, FIX)
     if not fixed then print("[AFK] Perbaikan kompilasi tidak dipasang: " .. tostring(fixProblem)) end
     local current, added = fixed or source, {}
-    for _, feature in ipairs({ { "AFK", AFK }, { "Satu tab Drop", DROPUI }, { "FPS Boost", FPS }, { "Susunan menu", LAYOUT }, { "UI Farm", FARMUI }, { "Nama baru", RENAME }, { "Nama utimeme", BRAND }, { "Hubungkan otomatis", AUTOLINK }, { "Perbaikan dropdown", DROPFIX }, { "Perbaikan reconnect", REJOINFIX }, { "World Finder v11", FINDER11 }, { "Webhook hardcode", WEBHOOK }, { "Area Dirt Farm full", DIRTFARM }, { "Tab AutoDF", AUTODFTAB }, { "Auto Dirt Farm 24/7", AUTODF } }) do
+    for _, feature in ipairs({ { "AFK", AFK }, { "Satu tab Drop", DROPUI }, { "FPS Boost", FPS }, { "Susunan menu", LAYOUT }, { "UI Farm", FARMUI }, { "Nama baru", RENAME }, { "Nama utimeme", BRAND }, { "Hubungkan otomatis", AUTOLINK }, { "Perbaikan dropdown", DROPFIX }, { "Perbaikan reconnect", REJOINFIX }, { "World Finder v11", FINDER11 }, { "Webhook hardcode", WEBHOOK }, { "Area Dirt Farm full", DIRTFARM }, { "Auto Dirt Farm 24/7", AUTODF } }) do
         local patched, problem = applyPatches(current, feature[2])
         if patched then
             current = patched
@@ -1109,36 +1074,25 @@ local function pickCompiled(source)
     return nil, lastCompileError
 end
 
+local lastError = "respons kosong"
 for attempt = 1, 3 do
     local ok, source, commit = pcall(latestSource)
-    if not ok then
-        local primaryError = source
-        ok, source = pcall(download, "https://raw.githubusercontent.com/" .. repository .. "/refs/heads/main/n4th-main.lua")
-        if ok then commit = nil else source = tostring(primaryError) .. "\n" .. tostring(source) end
-    end
     if ok then
         local fn, label = pickCompiled(source)
-        if not fn then
-            reportFailure("[AFK] Semua versi gagal dikompilasi: " .. tostring(label))
-        end
-        print("[AFK] Menjalankan: " .. label .. " (versi " .. tostring(commit and commit:sub(1, 8) or "main") .. ")")
+        if not fn then error("[AFK] Semua versi gagal dikompilasi: " .. tostring(label), 0) end
+        print("[AFK] Menjalankan: " .. label .. " (versi " .. tostring(commit) .. ")")
         local ran, result = xpcall(fn, function(err)
             if debug and type(debug.traceback) == "function" then return debug.traceback(tostring(err), 2) end
             return tostring(err)
         end)
         if not ran then
-            local globals = _G
-            if type(getgenv) == "function" then
-                local found, value = pcall(getgenv)
-                if found and type(value) == "table" then globals = value end
-            end
+            local globals = (getgenv and getgenv()) or _G
             local session = globals.__n4thOpus
-            local step = session and session.InitStep or "script initialization"
-            reportFailure("[AFK] Gagal saat " .. tostring(step) .. ":\n" .. tostring(result))
+            error("[AFK] Gagal saat " .. tostring(session and session.InitStep or "inisialisasi") .. ":\n" .. tostring(result), 0)
         end
         return result
     end
     lastError = tostring(source)
     if attempt < 3 then task.wait(1) end
 end
-reportFailure("[AFK] Gagal mengambil script setelah 3 percobaan: " .. lastError)
+error("[AFK] Gagal mengambil script setelah 3 percobaan: " .. lastError, 0)
