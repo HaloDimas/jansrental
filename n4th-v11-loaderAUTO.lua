@@ -782,6 +782,35 @@ local AUTODF = {
         pcall(Config.save, true)
     end
 
+    -- Deteksi permukaan dirt di world ini (baris pertama yang padat),
+    -- lalu set area Dirt Farm otomatis seperti cara manual (sudut kiri-atas
+    -- = permukaan, sudut kanan-bawah = bedrock, Gali dulu nyala).
+    local function autoDFArea()
+        local w = Refs.World
+        if not w or not w.w or not w.h then return false end
+        local W, H = w.w, w.h
+        local function rowSolid(y)
+            local n = 0
+            for x = 0, W - 1 do
+                local it = ItemDB[fgIdAt(x, y)]
+                if it and it.solid and it.kind ~= "seed" then n += 1 end
+            end
+            return n * 2 > W
+        end
+        local surface = nil
+        for y = 0, H - 2 do
+            if rowSolid(y) and rowSolid(y + 1) then surface = y break end
+        end
+        if not surface then return false end
+        Build.Dirt.X0 = 0
+        Build.Dirt.X1 = 99
+        Build.Dirt.Y0 = surface
+        Build.Dirt.Y1 = -1
+        Build.Dirt.Dig = true
+        pcall(Config.save, true)
+        return true, surface
+    end
+
     function WorldFinder.autoDFStart()
         local df = WorldFinder.AutoDF
         if df.Running then return end
@@ -861,6 +890,12 @@ local AUTODF = {
                         df.Current = target
                         WorldFinder.log("Auto Dirt Farm: bangun di " .. target)
                         Hook.send("finder", ("Auto Dirt Farm — ketemu world kosong: %s\nMulai bangun Dirt Farm. Selesai nanti pindah ke world kosong berikutnya."):format(target))
+                        local _okArea, _surf = autoDFArea()
+                        if _okArea then
+                            WorldFinder.log("Auto Dirt Farm: area diset otomatis (Y0=" .. tostring(_surf) .. ", X 0-99, sampai bedrock, Gali dulu nyala).")
+                        else
+                            WorldFinder.log("Auto Dirt Farm: permukaan tidak ketemu, pakai area lama (Y0=" .. tostring(Build.Dirt.Y0) .. ").")
+                        end
                         Build.start(true)
                         task.wait(2)
                         if live() and Build.Running and Build.DirtRun then
