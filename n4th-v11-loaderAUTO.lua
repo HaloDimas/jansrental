@@ -926,12 +926,25 @@ local AUTODF = {
         end)
     end
 
-    -- Lanjut sendiri setelah teleport / reload (rejoin memuat loader ini lagi).
-    -- Dijeda 15 detik setelah Session siap biar game sempat stabil dulu (anti-freeze).
+    -- Deteksi apakah load ini reload setelah teleport (bot lagi jalan 24/7)
+    -- atau execute baru dari user. Dibaca SEBELUM WorldFinder.startup()
+    -- menghabiskan checkpoint-nya. Execute baru TIDAK auto-start (itu yang
+    -- bikin freeze); reload teleport lanjutin loop-nya biar 24/7 tetap jalan.
+    local _isTeleportReload = false
+    do
+        local ok, data = pcall(teleport.GetTeleportSetting, teleport, "n4th.finder.teleport.v1")
+        if ok and type(data) == "table" and data.Active == true and data.Schema == 1
+            and data.Universe == game.GameId and data.User == LocalPlayer.UserId
+            and type(data.At) == "number" and os.time() - data.At >= 0 and os.time() - data.At < 600
+            and data.Job ~= game.JobId then
+            _isTeleportReload = true
+        end
+    end
+    -- Lanjut sendiri HANYA kalau ini reload setelah teleport.
     task.spawn(function()
         local deadline = os.clock() + 300
         while alive() and os.clock() < deadline do
-            if WorldFinder.AutoDF.On and Session.Ready and Refs.World and not WorldFinder.Busy and not WorldFinder.AutoDF.Running then
+            if _isTeleportReload and WorldFinder.AutoDF.On and Session.Ready and Refs.World and not WorldFinder.Busy and not WorldFinder.AutoDF.Running then
                 task.wait(15)
                 if WorldFinder.AutoDF.On and not WorldFinder.AutoDF.Running then
                     WorldFinder.autoDFStart()
